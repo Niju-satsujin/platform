@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getProgress } from "@/lib/progress";
 import { prisma } from "@/lib/db";
+import { SkillRadar } from "@/app/components/skill-radar";
 
 export default async function ProgressPage() {
   const progress = await getProgress();
@@ -72,6 +73,11 @@ export default async function ProgressPage() {
           <div className="text-2xl font-bold text-blue-300">{progress.dueReviews}</div>
           <div className="text-gray-500 text-xs mt-0.5">Due Reviews</div>
         </div>
+      </div>
+
+      {/* ===== Skill Radar ===== */}
+      <div className="mb-8">
+        <SkillRadar />
       </div>
 
       {/* Overall XP bar */}
