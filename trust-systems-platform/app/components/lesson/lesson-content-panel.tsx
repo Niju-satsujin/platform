@@ -1,6 +1,7 @@
 "use client";
 
 import { TrainingSessionCard } from "./training-session-card";
+import { InteractiveContent } from "./interactive-content";
 
 interface LessonContentPanelProps {
   /** Lesson title for the content heading */
@@ -25,6 +26,8 @@ interface LessonContentPanelProps {
   proofInstructions: string;
   /** Full lesson markdown rendered as HTML (H1 already stripped) */
   contentHtml: string;
+  /** Unique lesson identifier for persisting checkbox state */
+  lessonId?: string;
 }
 
 export function LessonContentPanel({
@@ -39,6 +42,7 @@ export function LessonContentPanel({
   whatCounts,
   proofInstructions,
   contentHtml,
+  lessonId,
 }: LessonContentPanelProps) {
   return (
     <div className="flex flex-col" style={{ gap: '32px' }}>
@@ -68,9 +72,10 @@ export function LessonContentPanel({
 
       {/* ===== Markdown lesson content ===== */}
       <div style={{ maxWidth: '70ch' }}>
-        <article
+        <InteractiveContent
+          html={contentHtml}
+          storageKey={lessonId || 'lesson'}
           className="prose"
-          dangerouslySetInnerHTML={{ __html: contentHtml }}
         />
       </div>
     </div>

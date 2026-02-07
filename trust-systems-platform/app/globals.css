@@ -854,10 +854,16 @@ h2::first-letter {
   margin-right: 8px;
   position: relative;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+.prose input[type="checkbox"]:hover {
+  border-color: var(--green-500);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--green-500) 20%, transparent);
 }
 .prose input[type="checkbox"]:checked {
   background: var(--green-600);
   border-color: var(--green-500);
+  transform: scale(1.1);
 }
 .prose input[type="checkbox"]:checked::after {
   content: "✓";
@@ -871,6 +877,7 @@ h2::first-letter {
 .prose li:has(input[type="checkbox"]) {
   list-style: none;
   margin-left: -1.5rem;
+  transition: opacity 0.2s ease, text-decoration 0.2s ease;
 }
 .prose hr { border: none; border-top: 1px solid var(--gray-700); margin: 2rem 0; }
 .prose img { border-radius: 12px; }

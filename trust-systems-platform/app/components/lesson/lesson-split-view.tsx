@@ -39,6 +39,7 @@ export function LessonSplitView(props: LessonSplitViewProps) {
           whatCounts={props.whatCounts}
           proofInstructions={props.proofInstructions}
           contentHtml={props.contentHtml}
+          lessonId={props.lessonId}
         />
       }
       rightPanel={
