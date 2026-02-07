@@ -86,6 +86,7 @@ export default function TopHeader({
             height={28}
             className="h-7 w-auto"
             priority
+            suppressHydrationWarning
           />
         </Link>
 
@@ -174,7 +175,7 @@ export default function TopHeader({
                 title="Reviews"
                 suppressHydrationWarning
               >
-                <Image src="/img/notification-silver.png" alt="Reviews" width={16} height={16} className="h-4 w-4" />
+                <Image src="/img/notification-silver.png" alt="Reviews" width={16} height={16} className="h-4 w-4" suppressHydrationWarning />
                 {dueReviews > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-red-500 text-[10px] leading-4 text-white px-1 text-center font-bold">
                     {Math.min(dueReviews, 99)}
@@ -188,7 +189,7 @@ export default function TopHeader({
                 title="Community"
                 suppressHydrationWarning
               >
-                <Image src="/img/discord_logo_blue.png" alt="Community" width={16} height={16} className="h-4 w-4" />
+                <Image src="/img/discord_logo_blue.png" alt="Community" width={16} height={16} className="h-4 w-4" suppressHydrationWarning />
                 {communityCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-blue-500 text-[10px] leading-4 text-white px-1 text-center font-bold">
                     {Math.min(communityCount, 99)}
@@ -223,6 +224,7 @@ export default function TopHeader({
                   width={32}
                   height={32}
                   className="h-full w-full object-cover"
+                  suppressHydrationWarning
                 />
               </Link>
 
