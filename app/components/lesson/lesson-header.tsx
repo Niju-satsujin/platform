@@ -96,6 +96,7 @@ export function LessonHeader({
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+              suppressHydrationWarning
             />
           </svg>
         </Link>
@@ -104,8 +105,8 @@ export function LessonHeader({
         {durationMinutes > 0 && (
           <span className="topbar-meta">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" suppressHydrationWarning>
-              <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1" />
-              <path d="M8 5v3.5l2.5 1.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+              <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1" suppressHydrationWarning />
+              <path d="M8 5v3.5l2.5 1.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" suppressHydrationWarning />
             </svg>
             {durationMinutes}m
           </span>
@@ -121,11 +122,13 @@ export function LessonHeader({
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                suppressHydrationWarning
               />
             </svg>
           ) : (
             <>
               <span
+                suppressHydrationWarning
                 style={{
                   width: 6,
                   height: 6,
@@ -134,6 +137,7 @@ export function LessonHeader({
                 }}
               />
               <span
+                suppressHydrationWarning
                 style={{
                   width: 6,
                   height: 6,
@@ -185,13 +189,13 @@ export function LessonHeader({
             aria-label="Previous lesson"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" suppressHydrationWarning>
-              <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" suppressHydrationWarning />
             </svg>
           </Link>
         ) : (
           <span className="topbar-nav-btn topbar-nav-btn-disabled" aria-disabled="true">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" suppressHydrationWarning>
-              <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" suppressHydrationWarning />
             </svg>
           </span>
         )}
@@ -204,13 +208,13 @@ export function LessonHeader({
             aria-label="Next lesson"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" suppressHydrationWarning>
-              <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" suppressHydrationWarning />
             </svg>
           </Link>
         ) : (
           <span className="topbar-nav-btn topbar-nav-btn-disabled" aria-disabled="true">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" suppressHydrationWarning>
-              <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" suppressHydrationWarning />
             </svg>
           </span>
         )}

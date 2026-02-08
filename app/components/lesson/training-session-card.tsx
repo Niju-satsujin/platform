@@ -172,6 +172,7 @@ export function TrainingSessionCard(props: TrainingSessionCardProps) {
                   className={`text-gray-500 shrink-0 transition-transform ${
                     isOpen ? "rotate-180" : ""
                   }`}
+                  suppressHydrationWarning
                 >
                   <path
                     d="M4 6l4 4 4-4"
@@ -179,6 +180,7 @@ export function TrainingSessionCard(props: TrainingSessionCardProps) {
                     strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    suppressHydrationWarning
                   />
                 </svg>
               </button>
