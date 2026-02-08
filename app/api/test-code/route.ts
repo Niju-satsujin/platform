@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdtemp, rm } from "fs/promises";
-import { execFile } from "child_process";
-import { tmpdir } from "os";
-import path from "path";
-import { promisify } from "util";
 
-const execFileAsync = promisify(execFile);
+const PISTON_URL = "https://emkc.org/api/v2/piston/execute";
 
 const MAX_CODE_LENGTH = 50_000;
-const COMPILE_TIMEOUT = 10_000;
-const RUN_TIMEOUT = 5_000;
 const MAX_OUTPUT = 10_000;
 
 function truncate(str: string, max: number) {
@@ -59,9 +52,71 @@ function checkOutput(
   }
 }
 
-export async function POST(req: NextRequest) {
-  let tmpDir: string | null = null;
+/* ── Piston execution helper ── */
+async function pistonRun(
+  code: string,
+  stdin: string = ""
+): Promise<{
+  compileOk: boolean;
+  compileError?: string;
+  warnings?: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  signal?: string;
+}> {
+  const res = await fetch(PISTON_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      language: "c++",
+      version: "10.2.0",
+      files: [{ name: "main.cpp", content: code }],
+      stdin,
+      compile_timeout: 10000,
+      run_timeout: 5000,
+      compile_memory_limit: -1,
+      run_memory_limit: -1,
+    }),
+  });
 
+  if (!res.ok) {
+    const text = await res.text();
+    return {
+      compileOk: false,
+      compileError: `Execution service error: ${text}`,
+      stdout: "",
+      stderr: "",
+      exitCode: 1,
+    };
+  }
+
+  const data = await res.json();
+  const compile = data.compile || {};
+  const run = data.run || {};
+
+  // Piston returns compile.code !== 0 if compilation fails
+  if (compile.code !== undefined && compile.code !== 0) {
+    return {
+      compileOk: false,
+      compileError: compile.stderr || compile.output || "Compilation failed",
+      stdout: "",
+      stderr: compile.stderr || "",
+      exitCode: compile.code,
+    };
+  }
+
+  return {
+    compileOk: true,
+    warnings: compile.stderr || undefined,
+    stdout: run.stdout || "",
+    stderr: run.stderr || "",
+    exitCode: run.code ?? 0,
+    signal: run.signal || undefined,
+  };
+}
+
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { code, testCode, testCases, expectedOutput } = body as {
@@ -85,21 +140,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    tmpDir = await mkdtemp(path.join(tmpdir(), "tsp-test-"));
-
     // --- Mode 1: testCode (C++ test harness that includes the solution) ---
     if (testCode) {
-      return await runTestHarness(tmpDir, code, testCode);
+      return await runTestHarness(code, testCode);
     }
 
     // --- Mode 2: testCases (multiple input/output pairs) ---
     if (testCases && testCases.length > 0) {
-      return await runTestCases(tmpDir, code, testCases);
+      return await runTestCases(code, testCases);
     }
 
     // --- Mode 3: simple expectedOutput comparison ---
     if (expectedOutput !== undefined && expectedOutput !== "") {
-      return await runTestCases(tmpDir, code, [
+      return await runTestCases(code, [
         {
           name: "Output Check",
           expectedOutput,
@@ -108,182 +161,93 @@ export async function POST(req: NextRequest) {
       ]);
     }
 
-    // --- Mode 4: self-testing code (PASS/FAIL printed by student's main) ---
-    // When no external tests are defined, compile and run the student code
-    // directly and parse PASS/FAIL lines from stdout.
-    return await runSelfTest(tmpDir, code);
+    // --- Mode 4: self-testing code ---
+    return await runSelfTest(code);
   } catch (err) {
     console.error("Test code error:", err);
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    if (tmpDir) {
-      rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-    }
   }
 }
 
-async function compileCpp(
-  srcPath: string,
-  binPath: string
-): Promise<{ success: boolean; error?: string; warnings?: string }> {
-  try {
-    const result = await execFileAsync(
-      "g++",
-      ["-std=c++17", "-Wall", "-Wextra", "-o", binPath, srcPath],
-      { timeout: COMPILE_TIMEOUT, maxBuffer: 1024 * 1024 }
-    );
-    return {
-      success: true,
-      warnings: result.stderr || undefined,
-    };
-  } catch (err: unknown) {
-    const e = err as { stderr?: string };
-    return {
-      success: false,
-      error: truncate(e.stderr || "Compilation failed", MAX_OUTPUT),
-    };
-  }
-}
+async function runTestHarness(code: string, testCode: string) {
+  // Inline the solution into the test harness instead of #include
+  // Replace #include "solution.h" with the actual code
+  const combined = testCode.replace(
+    /#include\s*["']solution\.h["']/g,
+    `// === USER SOLUTION ===\n${code}\n// === END USER SOLUTION ===`
+  );
 
-async function runBinary(
-  binPath: string
-): Promise<{ success: boolean; stdout: string; stderr: string; error?: string }> {
-  try {
-    const result = await execFileAsync(binPath, [], {
-      timeout: RUN_TIMEOUT,
-      maxBuffer: 1024 * 1024,
-    });
-    return {
-      success: true,
-      stdout: result.stdout,
-      stderr: result.stderr || "",
-    };
-  } catch (err: unknown) {
-    const e = err as {
-      stderr?: string;
-      stdout?: string;
-      killed?: boolean;
-      signal?: string;
-      code?: number;
-    };
+  const result = await pistonRun(combined);
 
-    if (e.killed || e.signal === "SIGTERM") {
-      return {
-        success: false,
-        stdout: e.stdout || "",
-        stderr: e.stderr || "",
-        error: `Timed out after ${RUN_TIMEOUT / 1000}s`,
-      };
-    }
-
-    return {
-      success: false,
-      stdout: e.stdout || "",
-      stderr: e.stderr || "",
-      error: `Runtime error (exit code ${e.code})`,
-    };
-  }
-}
-
-async function runTestHarness(
-  tmpDir: string,
-  code: string,
-  testCode: string
-) {
-  // Write user solution
-  const solutionPath = path.join(tmpDir, "solution.h");
-  await writeFile(solutionPath, code, "utf-8");
-
-  // Write test harness that includes the solution
-  const testPath = path.join(tmpDir, "test_main.cpp");
-  await writeFile(testPath, testCode, "utf-8");
-
-  const binPath = path.join(tmpDir, "test_runner");
-
-  // Compile test harness (it #includes "solution.h")
-  const compile = await compileCpp(testPath, binPath);
-  if (!compile.success) {
+  if (!result.compileOk) {
     return NextResponse.json({
       success: false,
       phase: "compile",
-      error: compile.error,
+      error: result.compileError,
       results: [],
     });
   }
 
-  // Run test binary
-  const run = await runBinary(binPath);
-
-  if (!run.success) {
+  if (result.exitCode !== 0 && !result.stdout) {
     return NextResponse.json({
       success: false,
       phase: "runtime",
-      error: run.error,
-      stdout: truncate(run.stdout, MAX_OUTPUT),
-      stderr: truncate(run.stderr, MAX_OUTPUT),
+      error: result.signal
+        ? `Killed by signal ${result.signal}`
+        : `Runtime error (exit code ${result.exitCode})`,
+      stdout: truncate(result.stdout, MAX_OUTPUT),
+      stderr: truncate(result.stderr, MAX_OUTPUT),
       results: [],
     });
   }
 
-  // Parse test output — expecting lines like:
-  // PASS: test_name
-  // FAIL: test_name | expected: X | got: Y
-  const results = parseTestOutput(run.stdout);
+  const results = parseTestOutput(result.stdout);
   const allPassed = results.length > 0 && results.every((r) => r.passed);
 
   return NextResponse.json({
     success: allPassed,
     phase: "complete",
     results,
-    stdout: truncate(run.stdout, MAX_OUTPUT),
-    stderr: truncate(run.stderr, MAX_OUTPUT),
-    warnings: compile.warnings,
+    stdout: truncate(result.stdout, MAX_OUTPUT),
+    stderr: truncate(result.stderr, MAX_OUTPUT),
+    warnings: result.warnings,
   });
 }
 
-async function runTestCases(
-  tmpDir: string,
-  code: string,
-  testCases: TestCase[]
-) {
-  const srcPath = path.join(tmpDir, "solution.cpp");
-  const binPath = path.join(tmpDir, "solution");
-
-  await writeFile(srcPath, code, "utf-8");
-
-  // Compile once
-  const compile = await compileCpp(srcPath, binPath);
-  if (!compile.success) {
-    return NextResponse.json({
-      success: false,
-      phase: "compile",
-      error: compile.error,
-      results: [],
-    });
-  }
-
-  // Run each test case
+async function runTestCases(code: string, testCases: TestCase[]) {
+  // Run each test case as a separate Piston call with different stdin
   const results: TestResult[] = [];
 
   for (const tc of testCases) {
-    const run = await runBinary(binPath);
+    const result = await pistonRun(code, tc.input || "");
 
-    if (!run.success) {
+    if (!result.compileOk) {
+      return NextResponse.json({
+        success: false,
+        phase: "compile",
+        error: result.compileError,
+        results: [],
+      });
+    }
+
+    if (result.exitCode !== 0 && !result.stdout) {
       results.push({
         name: tc.name,
         passed: false,
         expected: tc.expectedOutput,
-        actual: run.error || "Runtime error",
-        error: run.error,
+        actual: result.signal
+          ? `Killed by signal ${result.signal}`
+          : `Runtime error (exit code ${result.exitCode})`,
+        error: result.stderr || undefined,
       });
       continue;
     }
 
     const passed = checkOutput(
-      run.stdout,
+      result.stdout,
       tc.expectedOutput,
       tc.comparison || "exact"
     );
@@ -292,8 +256,8 @@ async function runTestCases(
       name: tc.name,
       passed,
       expected: tc.expectedOutput,
-      actual: normalizeOutput(run.stdout),
-      error: run.stderr ? truncate(run.stderr, 500) : undefined,
+      actual: normalizeOutput(result.stdout),
+      error: result.stderr ? truncate(result.stderr, 500) : undefined,
     });
   }
 
@@ -303,47 +267,42 @@ async function runTestCases(
     success: allPassed,
     phase: "complete",
     results,
-    warnings: compile.warnings,
   });
 }
 
-async function runSelfTest(tmpDir: string, code: string) {
-  const srcPath = path.join(tmpDir, "solution.cpp");
-  const binPath = path.join(tmpDir, "solution");
+async function runSelfTest(code: string) {
+  const result = await pistonRun(code);
 
-  await writeFile(srcPath, code, "utf-8");
-
-  const compile = await compileCpp(srcPath, binPath);
-  if (!compile.success) {
+  if (!result.compileOk) {
     return NextResponse.json({
       success: false,
       phase: "compile",
-      error: compile.error,
+      error: result.compileError,
       results: [],
     });
   }
 
-  const run = await runBinary(binPath);
-  if (!run.success) {
+  if (result.exitCode !== 0 && !result.stdout) {
     return NextResponse.json({
       success: false,
       phase: "runtime",
-      error: run.error,
-      stdout: truncate(run.stdout, MAX_OUTPUT),
-      stderr: truncate(run.stderr, MAX_OUTPUT),
+      error: result.signal
+        ? `Killed by signal ${result.signal}`
+        : `Runtime error (exit code ${result.exitCode})`,
+      stdout: truncate(result.stdout, MAX_OUTPUT),
+      stderr: truncate(result.stderr, MAX_OUTPUT),
       results: [],
     });
   }
 
-  const results = parseTestOutput(run.stdout);
+  const results = parseTestOutput(result.stdout);
 
-  // If no PASS/FAIL lines were found, treat a clean exit as a single pass
   if (results.length === 0) {
     results.push({
       name: "Program Output",
       passed: true,
       expected: "",
-      actual: normalizeOutput(run.stdout),
+      actual: normalizeOutput(result.stdout),
     });
   }
 
@@ -353,9 +312,9 @@ async function runSelfTest(tmpDir: string, code: string) {
     success: allPassed,
     phase: "complete",
     results,
-    stdout: truncate(run.stdout, MAX_OUTPUT),
-    stderr: truncate(run.stderr, MAX_OUTPUT),
-    warnings: compile.warnings,
+    stdout: truncate(result.stdout, MAX_OUTPUT),
+    stderr: truncate(result.stderr, MAX_OUTPUT),
+    warnings: result.warnings,
   });
 }
 

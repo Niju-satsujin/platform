@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdtemp, rm } from "fs/promises";
-import { execFile } from "child_process";
-import { tmpdir } from "os";
-import path from "path";
-import { promisify } from "util";
 
-const execFileAsync = promisify(execFile);
-
+const PISTON_URL = "https://emkc.org/api/v2/piston/execute";
 const MAX_CODE_LENGTH = 50_000;
-const COMPILE_TIMEOUT = 10_000; // 10s
-const RUN_TIMEOUT = 5_000; // 5s
-const MAX_OUTPUT = 10_000; // chars
+const MAX_OUTPUT = 10_000;
 
 function truncate(str: string, max: number) {
   if (str.length > max) return str.slice(0, max) + "\n... (output truncated)";
@@ -18,11 +10,9 @@ function truncate(str: string, max: number) {
 }
 
 export async function POST(req: NextRequest) {
-  let tmpDir: string | null = null;
-
   try {
     const body = await req.json();
-    const { code } = body as { code: string };
+    const { code, stdin } = body as { code: string; stdin?: string };
 
     if (!code || typeof code !== "string") {
       return NextResponse.json(
@@ -38,76 +28,68 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create temp directory
-    tmpDir = await mkdtemp(path.join(tmpdir(), "tsp-"));
-    const srcPath = path.join(tmpDir, "solution.cpp");
-    const binPath = path.join(tmpDir, "solution");
+    // Execute via Piston API
+    const pistonRes = await fetch(PISTON_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        language: "c++",
+        version: "10.2.0",
+        files: [{ name: "main.cpp", content: code }],
+        stdin: stdin || "",
+        compile_timeout: 10000,
+        run_timeout: 5000,
+        compile_memory_limit: -1,
+        run_memory_limit: -1,
+      }),
+    });
 
-    await writeFile(srcPath, code, "utf-8");
-
-    // Compile
-    let compileResult;
-    try {
-      compileResult = await execFileAsync(
-        "g++",
-        ["-std=c++17", "-Wall", "-Wextra", "-o", binPath, srcPath],
-        { timeout: COMPILE_TIMEOUT, maxBuffer: 1024 * 1024 }
-      );
-    } catch (err: unknown) {
-      const compileErr = err as { stderr?: string; code?: number };
-      const stderr = compileErr.stderr || "Compilation failed";
+    if (!pistonRes.ok) {
+      const text = await pistonRes.text();
       return NextResponse.json({
         success: false,
         phase: "compile",
-        error: truncate(stderr, MAX_OUTPUT),
+        error: `Execution service error: ${text}`,
         stdout: "",
-        stderr: truncate(stderr, MAX_OUTPUT),
+        stderr: "",
       });
     }
 
-    // Run
-    let runResult;
-    try {
-      runResult = await execFileAsync(binPath, [], {
-        timeout: RUN_TIMEOUT,
-        maxBuffer: 1024 * 1024,
+    const data = await pistonRes.json();
+    const compile = data.compile || {};
+    const run = data.run || {};
+
+    // Compilation failure
+    if (compile.code !== undefined && compile.code !== 0) {
+      return NextResponse.json({
+        success: false,
+        phase: "compile",
+        error: truncate(compile.stderr || compile.output || "Compilation failed", MAX_OUTPUT),
+        stdout: "",
+        stderr: truncate(compile.stderr || "", MAX_OUTPUT),
       });
-    } catch (err: unknown) {
-      const runErr = err as {
-        stderr?: string;
-        stdout?: string;
-        killed?: boolean;
-        signal?: string;
-        code?: number;
-      };
+    }
 
-      if (runErr.killed || runErr.signal === "SIGTERM") {
-        return NextResponse.json({
-          success: false,
-          phase: "runtime",
-          error: `Program timed out after ${RUN_TIMEOUT / 1000}s`,
-          stdout: truncate(runErr.stdout || "", MAX_OUTPUT),
-          stderr: truncate(runErr.stderr || "", MAX_OUTPUT),
-        });
-      }
-
+    // Runtime error
+    if (run.code !== 0) {
       return NextResponse.json({
         success: false,
         phase: "runtime",
-        error: `Runtime error (exit code ${runErr.code})`,
-        stdout: truncate(runErr.stdout || "", MAX_OUTPUT),
-        stderr: truncate(runErr.stderr || "", MAX_OUTPUT),
+        error: run.signal
+          ? `Killed by signal ${run.signal}`
+          : `Runtime error (exit code ${run.code})`,
+        stdout: truncate(run.stdout || "", MAX_OUTPUT),
+        stderr: truncate(run.stderr || "", MAX_OUTPUT),
       });
     }
 
+    // Success
     return NextResponse.json({
       success: true,
       phase: "complete",
-      stdout: truncate(runResult.stdout, MAX_OUTPUT),
-      stderr: truncate(runResult.stderr || "", MAX_OUTPUT),
-      ...(compileResult.stderr
-        ? { warnings: truncate(compileResult.stderr, MAX_OUTPUT) }
-        : {}),
+      stdout: truncate(run.stdout || "", MAX_OUTPUT),
+      stderr: truncate(run.stderr || "", MAX_OUTPUT),
+      ...(compile.stderr ? { warnings: truncate(compile.stderr, MAX_OUTPUT) } : {}),
     });
   } catch (err) {
     console.error("Run code error:", err);
@@ -115,9 +97,5 @@ export async function POST(req: NextRequest) {
       { success: false, error: "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    if (tmpDir) {
-      rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-    }
   }
 }

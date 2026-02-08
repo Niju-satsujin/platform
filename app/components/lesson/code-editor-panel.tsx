@@ -25,7 +25,7 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ),
 });
 
-const XtermTerminal = dynamic(() => import("./xterm-terminal"), {
+const CloudTerminal = dynamic(() => import("./cloud-terminal"), {
   ssr: false,
   loading: () => (
     <div className="flex-1 flex items-center justify-center bg-[#0a0a0f] text-gray-600 text-sm">
@@ -454,12 +454,16 @@ export function CodeEditorPanel({
           {/* Resize handle */}
           <Separator className="terminal-resize-handle" />
 
-          {/* Real terminal */}
+          {/* Cloud terminal */}
           <Panel defaultSize={40} minSize={15}>
             {ready ? (
-              <XtermTerminal
-                wsUrl="ws://localhost:3061"
-                cwd={workspaceDir || undefined}
+              <CloudTerminal
+                getCode={() => openFiles[activeIdx]?.content ?? ""}
+                getFiles={() =>
+                  openFiles.map((f) => ({ name: f.name, content: f.content }))
+                }
+                language={currentLang}
+                lessonId={lessonId}
               />
             ) : (
               <div className="flex items-center justify-center h-full bg-[#0a0a0f] text-gray-600 text-sm">
