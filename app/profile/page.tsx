@@ -12,6 +12,12 @@ interface ProfileData {
   profileImage: string;
 }
 
+interface GitHubSettings {
+  connected: boolean;
+  githubUsername: string;
+  githubRepo: string;
+}
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -19,11 +25,18 @@ export default function ProfilePage() {
   const [profileImage, setProfileImage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { editorMode, setEditorMode } = useEditorMode();
+
+  // GitHub settings state
+  const [github, setGitHub] = useState<GitHubSettings>({ connected: false, githubUsername: "", githubRepo: "" });
+  const [ghToken, setGhToken] = useState("");
+  const [ghRepoName, setGhRepoName] = useState("");
+  const [ghCreateNew, setGhCreateNew] = useState(false);
+  const [ghSaving, setGhSaving] = useState(false);
+  const [ghMessage, setGhMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     async function loadProfile() {
@@ -46,7 +59,76 @@ export default function ProfilePage() {
       }
     }
     loadProfile();
+    loadGitHubSettings();
   }, []);
+
+  async function loadGitHubSettings() {
+    try {
+      const res = await fetch("/api/settings/github", { credentials: "include" });
+      if (res.ok) {
+        const data: GitHubSettings = await res.json();
+        setGitHub(data);
+      }
+    } catch {
+      // Silently ignore — GitHub settings are optional
+    }
+  }
+
+  async function handleGitHubConnect() {
+    setGhSaving(true);
+    setGhMessage(null);
+
+    try {
+      const res = await fetch("/api/settings/github", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          token: ghToken,
+          repoName: ghRepoName,
+          createNew: ghCreateNew,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setGhMessage({ type: "error", text: data.error || "Failed to connect GitHub" });
+        return;
+      }
+
+      setGitHub(data);
+      setGhToken("");
+      setGhRepoName("");
+      setGhCreateNew(false);
+      setGhMessage({ type: "success", text: "GitHub connected successfully!" });
+    } catch {
+      setGhMessage({ type: "error", text: "Network error — please try again" });
+    } finally {
+      setGhSaving(false);
+    }
+  }
+
+  async function handleGitHubDisconnect() {
+    setGhSaving(true);
+    setGhMessage(null);
+
+    try {
+      const res = await fetch("/api/settings/github", {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (res.ok) {
+        setGitHub({ connected: false, githubUsername: "", githubRepo: "" });
+        setGhMessage({ type: "success", text: "GitHub disconnected" });
+      }
+    } catch {
+      setGhMessage({ type: "error", text: "Network error — please try again" });
+    } finally {
+      setGhSaving(false);
+    }
+  }
 
   async function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -345,6 +427,123 @@ export default function ProfilePage() {
           </Link>
         </div>
       </form>
+
+      {/* GitHub Integration */}
+      <div className="game-card p-6 mt-6 space-y-5">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-gray-300">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+            </svg>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              GitHub Integration
+            </label>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            Link a GitHub repository to automatically save your learning progress. Each completed lesson or quest will be committed to your repo.
+          </p>
+
+          {ghMessage && (
+            <div
+              className={`flex items-center gap-2 p-3 rounded-lg text-sm mb-4 ${
+                ghMessage.type === "success"
+                  ? "bg-green-950/50 border border-green-800/30 text-green-400"
+                  : "bg-red-950/50 border border-red-800/30 text-red-400"
+              }`}
+            >
+              {ghMessage.type === "success" ? "✅" : "❌"} {ghMessage.text}
+            </div>
+          )}
+
+          {github.connected ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-green-950/30 border border-green-800/20">
+                <span className="text-green-400 text-sm">✓ Connected</span>
+                <span className="text-gray-300 text-sm font-mono">@{github.githubUsername}</span>
+                {github.githubRepo && (
+                  <a
+                    href={`https://github.com/${github.githubRepo}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-yellow-500 hover:text-yellow-400 text-sm underline ml-auto"
+                  >
+                    {github.githubRepo}
+                  </a>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleGitHubDisconnect}
+                disabled={ghSaving}
+                className="btn-secondary !py-2 !text-xs text-red-400 hover:text-red-300 disabled:opacity-60"
+              >
+                {ghSaving ? "Disconnecting…" : "Disconnect GitHub"}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="ghToken" className="block text-xs font-semibold text-gray-400 mb-1.5 uppercase tracking-wider">
+                  Personal Access Token
+                </label>
+                <input
+                  id="ghToken"
+                  type="password"
+                  value={ghToken}
+                  onChange={(e) => setGhToken(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-sm font-mono"
+                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                />
+                <p className="text-xs text-gray-600 mt-1">
+                  Generate a token at{" "}
+                  <a
+                    href="https://github.com/settings/tokens/new?scopes=repo&description=Trust+Systems+Platform"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-yellow-500 hover:text-yellow-400 underline"
+                  >
+                    github.com/settings/tokens
+                  </a>{" "}
+                  with <strong className="text-gray-400">repo</strong> scope.
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="ghRepoName" className="block text-xs font-semibold text-gray-400 mb-1.5 uppercase tracking-wider">
+                  Repository Name
+                </label>
+                <input
+                  id="ghRepoName"
+                  type="text"
+                  value={ghRepoName}
+                  onChange={(e) => setGhRepoName(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-sm"
+                  placeholder={ghCreateNew ? "my-learning-progress" : "username/repo-name"}
+                />
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={ghCreateNew}
+                  onChange={(e) => setGhCreateNew(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-600 bg-gray-800 text-yellow-500 focus:ring-yellow-500/30"
+                />
+                <span className="text-xs text-gray-400">Create a new repository</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={handleGitHubConnect}
+                disabled={ghSaving || !ghToken.trim()}
+                className="btn-primary !py-2.5 disabled:opacity-60"
+              >
+                {ghSaving ? "Connecting…" : "Connect GitHub"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
