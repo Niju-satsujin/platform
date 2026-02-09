@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Boot.dev Design System — Pixel-Perfect Clone
+   Black & White Design System
    ============================================================ */
 
 /* ============ @font-face: Arcuata ============ */
@@ -224,73 +224,73 @@
   font-display: swap;
 }
 
-/* ============ Boot.dev :root color palette ============ */
+/* ============ Black & White :root color palette ============ */
 :root {
   color-scheme: dark;
 
-  /* Gray palette */
-  --gray-50: #f5f7f9;
-  --gray-100: #e8ecf1;
-  --gray-150: #dde3eb;
-  --gray-200: #d7dee6;
-  --gray-250: #c4d1db;
-  --gray-300: #b2c1d0;
-  --gray-350: #a3b3c7;
-  --gray-400: #919dab;
-  --gray-450: #818a98;
-  --gray-500: #6e7888;
-  --gray-550: #606877;
-  --gray-600: #4e5564;
-  --gray-650: #454b59;
-  --gray-700: #3c424f;
-  --gray-750: #323845;
-  --gray-800: #252936;
-  --gray-850: #202330;
-  --gray-900: #181b26;
-  --gray-950: #121620;
+  /* Gray palette — pure neutral */
+  --gray-50: #f7f7f7;
+  --gray-100: #e6e6e6;
+  --gray-150: #d9d9d9;
+  --gray-200: #cccccc;
+  --gray-250: #b3b3b3;
+  --gray-300: #a0a0a0;
+  --gray-350: #949494;
+  --gray-400: #8a8a8a;
+  --gray-450: #7a7a7a;
+  --gray-500: #6b6b6b;
+  --gray-550: #5c5c5c;
+  --gray-600: #4d4d4d;
+  --gray-650: #424242;
+  --gray-700: #383838;
+  --gray-750: #2e2e2e;
+  --gray-800: #222222;
+  --gray-850: #1a1a1a;
+  --gray-900: #111111;
+  --gray-950: #0a0a0a;
 
-  /* Yellow palette */
-  --yellow-50: #fffaeb;
-  --yellow-200: #fddf8f;
-  --yellow-300: #f6bd45;
-  --yellow-400: #e5ae3c;
-  --yellow-500: #efbb03;
-  --yellow-550: #d69e02;
-  --yellow-600: #c18500;
-  --yellow-650: #a96f06;
-  --yellow-700: #905a0a;
-  --yellow-750: #7b4d0c;
-  --yellow-800: #64400e;
-  --yellow-950: #2a1c0c;
+  /* Accent palette — white / light gray tones */
+  --yellow-50: #fafafa;
+  --yellow-200: #e0e0e0;
+  --yellow-300: #cccccc;
+  --yellow-400: #b8b8b8;
+  --yellow-500: #ffffff;
+  --yellow-550: #e6e6e6;
+  --yellow-600: #cccccc;
+  --yellow-650: #a6a6a6;
+  --yellow-700: #8c8c8c;
+  --yellow-750: #737373;
+  --yellow-800: #595959;
+  --yellow-950: #1a1a1a;
 
-  /* Red palette */
-  --red-100: #fcd9da;
-  --red-200: #f8b4b5;
-  --red-300: #f58f91;
-  --red-400: #f16a6c;
-  --red-500: #ed4245;
-  --red-600: #ea1f22;
-  --red-700: #cd1316;
-  --red-950: #2e0405;
+  /* Red palette — dark grays */
+  --red-100: #d9d9d9;
+  --red-200: #b3b3b3;
+  --red-300: #999999;
+  --red-400: #808080;
+  --red-500: #666666;
+  --red-600: #4d4d4d;
+  --red-700: #333333;
+  --red-950: #0d0d0d;
 
-  /* Blue palette */
-  --blue-300: #a2aafb;
-  --blue-400: #7e88f7;
-  --blue-500: #5966f3;
-  --blue-600: #465586;
-  --blue-800: #0314ce;
+  /* Blue palette — mid grays */
+  --blue-300: #b0b0b0;
+  --blue-400: #969696;
+  --blue-500: #7d7d7d;
+  --blue-600: #5c5c5c;
+  --blue-800: #333333;
 
-  /* Cyan palette */
-  --cyan-100: #d7ebfb;
-  --cyan-950: #041b2e;
+  /* Cyan palette — light neutrals */
+  --cyan-100: #e0e0e0;
+  --cyan-950: #0d0d0d;
 
-  /* Green palette */
-  --green-400: #8df6af;
-  --green-500: #57f287;
-  --green-700: #1bee5e;
-  --green-800: #10d14d;
-  --green-900: #0dab3f;
-  --green-950: #043212;
+  /* Green palette — light grays */
+  --green-400: #d1d1d1;
+  --green-500: #b8b8b8;
+  --green-700: #999999;
+  --green-800: #808080;
+  --green-900: #666666;
+  --green-950: #1a1a1a;
 
   /* Layout */
   --top-nav-bar-height: 50px;
@@ -304,56 +304,56 @@
   --z-overlay: 40;
 }
 
-/* ============ Tailwind v4 @theme — Boot.dev palette ============ */
+/* ============ Tailwind v4 @theme — Black & White palette ============ */
 @theme inline {
-  --color-gray-100: #e8ecf1;
-  --color-gray-150: #dde3eb;
-  --color-gray-200: #d7dee6;
-  --color-gray-250: #c4d1db;
-  --color-gray-300: #b2c1d0;
-  --color-gray-350: #a3b3c7;
-  --color-gray-400: #919dab;
-  --color-gray-450: #929cac;
-  --color-gray-500: #7a8596;
-  --color-gray-550: #6b7585;
-  --color-gray-600: #4e5564;
-  --color-gray-650: #454b59;
-  --color-gray-700: #3c424f;
-  --color-gray-750: #323845;
-  --color-gray-800: #252936;
-  --color-gray-850: #202330;
-  --color-gray-900: #181b26;
-  --color-gray-950: #121620;
+  --color-gray-100: #e6e6e6;
+  --color-gray-150: #d9d9d9;
+  --color-gray-200: #cccccc;
+  --color-gray-250: #b3b3b3;
+  --color-gray-300: #a0a0a0;
+  --color-gray-350: #949494;
+  --color-gray-400: #8a8a8a;
+  --color-gray-450: #7a7a7a;
+  --color-gray-500: #6b6b6b;
+  --color-gray-550: #5c5c5c;
+  --color-gray-600: #4d4d4d;
+  --color-gray-650: #424242;
+  --color-gray-700: #383838;
+  --color-gray-750: #2e2e2e;
+  --color-gray-800: #222222;
+  --color-gray-850: #1a1a1a;
+  --color-gray-900: #111111;
+  --color-gray-950: #0a0a0a;
 
-  --color-yellow-200: #fddf8f;
-  --color-yellow-300: #f6bd45;
-  --color-yellow-400: #e5ae3c;
-  --color-yellow-500: #efbb03;
-  --color-yellow-550: #d69e02;
-  --color-yellow-600: #c18500;
-  --color-yellow-650: #a96f06;
-  --color-yellow-700: #905a0a;
-  --color-yellow-750: #7b4d0c;
-  --color-yellow-800: #64400e;
-  --color-yellow-950: #2a1c0c;
+  --color-yellow-200: #e0e0e0;
+  --color-yellow-300: #cccccc;
+  --color-yellow-400: #b8b8b8;
+  --color-yellow-500: #ffffff;
+  --color-yellow-550: #e6e6e6;
+  --color-yellow-600: #cccccc;
+  --color-yellow-650: #a6a6a6;
+  --color-yellow-700: #8c8c8c;
+  --color-yellow-750: #737373;
+  --color-yellow-800: #595959;
+  --color-yellow-950: #1a1a1a;
 
-  --color-red-200: #f8b4b5;
-  --color-red-300: #f58f91;
-  --color-red-400: #f16a6c;
-  --color-red-500: #ed4245;
-  --color-red-600: #ea1f22;
-  --color-red-700: #cd1316;
+  --color-red-200: #b3b3b3;
+  --color-red-300: #999999;
+  --color-red-400: #808080;
+  --color-red-500: #666666;
+  --color-red-600: #4d4d4d;
+  --color-red-700: #333333;
 
-  --color-blue-300: #a2aafb;
-  --color-blue-400: #7e88f7;
-  --color-blue-500: #5966f3;
-  --color-blue-800: #0314ce;
+  --color-blue-300: #b0b0b0;
+  --color-blue-400: #969696;
+  --color-blue-500: #7d7d7d;
+  --color-blue-800: #333333;
 
-  --color-green-400: #8df6af;
-  --color-green-500: #57f287;
-  --color-green-700: #1bee5e;
-  --color-green-800: #10d14d;
-  --color-green-900: #0dab3f;
+  --color-green-400: #d1d1d1;
+  --color-green-500: #b8b8b8;
+  --color-green-700: #999999;
+  --color-green-800: #808080;
+  --color-green-900: #666666;
 
   --font-heading: Arcuata, serif;
   --font-body: DMSans, sans-serif;

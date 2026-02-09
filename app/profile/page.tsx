@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, useRef, FormEvent, ChangeEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -16,9 +16,11 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [profileImage, setProfileImage] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function loadProfile() {
@@ -43,6 +45,41 @@ export default function ProfilePage() {
     loadProfile();
   }, []);
 
+  async function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("profileImage", file);
+
+      const res = await fetch("/api/profile/upload", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({ type: "error", text: data.error || "Upload failed" });
+        return;
+      }
+
+      setProfile(data);
+      setProfileImage(data.profileImage);
+      setMessage({ type: "success", text: "Profile image updated!" });
+    } catch {
+      setMessage({ type: "error", text: "Network error — please try again" });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaving(true);
@@ -53,7 +90,7 @@ export default function ProfilePage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ displayName, bio, profileImage }),
+        body: JSON.stringify({ displayName, bio }),
       });
 
       const data = await res.json();
@@ -173,20 +210,41 @@ export default function ProfilePage() {
         </div>
 
         <div>
-          <label htmlFor="profileImage" className="block text-xs font-semibold text-gray-400 mb-1.5 uppercase tracking-wider">
-            Profile Image URL
+          <label className="block text-xs font-semibold text-gray-400 mb-1.5 uppercase tracking-wider">
+            Profile Image
           </label>
-          <input
-            id="profileImage"
-            type="text"
-            value={profileImage}
-            onChange={(e) => setProfileImage(e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-sm"
-            placeholder="/img/new_boots_profile.webp"
-          />
-          <p className="text-xs text-gray-600 mt-1">
-            Enter a URL or leave blank for the default avatar.
-          </p>
+          <div className="flex items-center gap-4">
+            <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-gray-700 flex-shrink-0">
+              <Image
+                src={profileImage || "/img/new_boots_profile.webp"}
+                alt="Current avatar"
+                width={64}
+                height={64}
+                className="h-full w-full object-cover"
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={handleImageUpload}
+                className="hidden"
+                id="profileImageUpload"
+              />
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="btn-secondary !py-2 !text-xs disabled:opacity-60"
+              >
+                {uploading ? "Uploading…" : "Upload Photo"}
+              </button>
+              <p className="text-xs text-gray-600 mt-1">
+                JPEG, PNG, WebP, or GIF — max 5 MB.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center gap-3 pt-2">
