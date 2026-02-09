@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { getReviewSchedule, parseReviewScheduleDays } from "@/lib/schedule-reviews";
 import { validateProof } from "@/lib/validate-proof";
 import { logProgressEvent } from "@/lib/progress-events";
+import { syncProgressToGitHub } from "@/lib/github-sync";
 import {
   buildTutorMessage,
   callAITutor,
@@ -260,6 +261,17 @@ async function handleLessonPass(userId: string, lessonId: string, submissionId: 
     status: "passed",
     xpAwarded: isFirstPass ? (lesson.xpReward ?? 100) : 0,
   });
+
+  // Sync to GitHub repo (fire-and-forget, never blocks completion)
+  if (isFirstPass) {
+    syncProgressToGitHub({
+      userId,
+      type: "lesson",
+      title: lesson.title,
+      partSlug: lesson.part.slug,
+      xpAwarded: lesson.xpReward ?? 100,
+    }).catch((err) => console.error("GitHub sync (lesson) failed:", err));
+  }
 }
 
 async function handleQuestPass(userId: string, questId: string, submissionId: string) {
@@ -301,6 +313,17 @@ async function handleQuestPass(userId: string, questId: string, submissionId: st
     status: "passed",
     xpAwarded: isFirstPass ? (quest.xpReward ?? 250) : 0,
   });
+
+  // Sync to GitHub repo (fire-and-forget, never blocks completion)
+  if (isFirstPass) {
+    syncProgressToGitHub({
+      userId,
+      type: "quest",
+      title: quest.title,
+      partSlug: quest.partId,
+      xpAwarded: quest.xpReward ?? 250,
+    }).catch((err) => console.error("GitHub sync (quest) failed:", err));
+  }
 }
 
 async function createTutorFlashcards(params: {

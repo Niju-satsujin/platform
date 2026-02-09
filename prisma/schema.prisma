@@ -22,6 +22,9 @@ model User {
   longestStreak  Int      @default(0)
   lastStreakDate DateTime?
   editorMode     String   @default("vscode") // "vscode" or "nvim"
+  githubUsername String   @default("")
+  githubToken    String   @default("")
+  githubRepo     String   @default("")
 
   submissions    Submission[]
   reviewItems    ReviewItem[]
