@@ -200,7 +200,7 @@ Recent Skills: ${opts.learner.recentSkills.map(s => `${s.skill}(${s.level})`).jo
   return parts.join("\n\n");
 }
 
-/* ─── Call Gemini (with model fallback + retry) ─── */
+/* ─── AI Provider: Gemini + Groq fallback ─── */
 
 const GEMINI_MODELS = [
   "gemini-1.5-flash",
@@ -208,35 +208,35 @@ const GEMINI_MODELS = [
   "gemini-2.0-flash",
 ];
 
+const GROQ_MODELS = [
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
+  "mixtral-8x7b-32768",
+];
+
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function callAIMonitor(
+/* ─── Gemini provider ─── */
+async function tryGemini(
   userMessage: string,
-  conversationHistory: { role: "user" | "assistant"; content: string }[] = []
-): Promise<CoachResponse> {
+  conversationHistory: { role: "user" | "assistant"; content: string }[]
+): Promise<CoachResponse | null> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY not configured");
-  }
+  if (!apiKey) return null;
 
-  // Build Gemini conversation format
   const contents: { role: string; parts: { text: string }[] }[] = [];
 
-  // System instruction as first user turn + model ack
   contents.push({ role: "user", parts: [{ text: SYSTEM_PROMPT + "\n\nAcknowledge you understand by responding with a short JSON confirming ready." }] });
   contents.push({ role: "model", parts: [{ text: '{"coach_mode":"warmup","message":"AI Monitor ready. Send me the learner context.","diagnosis":{"failure_types":[],"confidence":0,"evidence":[]},"next_actions":[],"graduated_hints":[],"flashcards_to_create":[],"skill_updates":[],"log_update":{"session_summary":"","mistakes":"","what_to_do_next_time":""}}' }] });
 
-  // Add conversation history
   for (const msg of conversationHistory.slice(-8)) {
     contents.push({
       role: msg.role === "user" ? "user" : "model",
       parts: [{ text: msg.content }],
     });
   }
-
-  // Add current user message
   contents.push({ role: "user", parts: [{ text: userMessage }] });
 
   const body = JSON.stringify({
@@ -248,38 +248,104 @@ export async function callAIMonitor(
     },
   });
 
-  // Try each model, with retry on 429
-  let lastError = "";
   for (const model of GEMINI_MODELS) {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body,
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body }
+        );
+        if (res.status === 429) {
+          await sleep(attempt === 0 ? 2000 : 5000);
+          continue;
         }
-      );
-
-      if (res.status === 429) {
-        // Rate limited — wait and retry or try next model
-        lastError = `Rate limited on ${model}`;
-        await sleep(attempt === 0 ? 3000 : 10000);
-        continue;
+        if (!res.ok) break;
+        const data = await res.json();
+        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+        return parseCoachResponse(raw);
+      } catch {
+        break;
       }
-
-      if (!res.ok) {
-        lastError = await res.text();
-        break; // Try next model
-      }
-
-      const data = await res.json();
-      const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-      return parseCoachResponse(raw);
     }
   }
+  return null;
+}
 
-  throw new Error(`All Gemini models failed. Last error: ${lastError}`);
+/* ─── Groq provider (free: 14,400 req/day) ─── */
+async function tryGroq(
+  userMessage: string,
+  conversationHistory: { role: "user" | "assistant"; content: string }[]
+): Promise<CoachResponse | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+
+  // OpenAI-compatible format
+  const messages: { role: string; content: string }[] = [
+    { role: "system", content: SYSTEM_PROMPT + "\n\nIMPORTANT: Always respond with valid JSON matching the CoachResponse schema." },
+  ];
+
+  for (const msg of conversationHistory.slice(-8)) {
+    messages.push({ role: msg.role === "user" ? "user" : "assistant", content: msg.content });
+  }
+  messages.push({ role: "user", content: userMessage });
+
+  for (const model of GROQ_MODELS) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.7,
+            max_tokens: 2048,
+            response_format: { type: "json_object" },
+          }),
+        });
+
+        if (res.status === 429) {
+          await sleep(attempt === 0 ? 2000 : 5000);
+          continue;
+        }
+        if (!res.ok) break;
+
+        const data = await res.json();
+        const raw = data.choices?.[0]?.message?.content || "{}";
+        return parseCoachResponse(raw);
+      } catch {
+        break;
+      }
+    }
+  }
+  return null;
+}
+
+/* ─── Main entry: tries Gemini → Groq ─── */
+export async function callAIMonitor(
+  userMessage: string,
+  conversationHistory: { role: "user" | "assistant"; content: string }[] = []
+): Promise<CoachResponse> {
+  // 1) Try Gemini first (if key exists)
+  const geminiResult = await tryGemini(userMessage, conversationHistory);
+  if (geminiResult) return geminiResult;
+
+  // 2) Fallback to Groq
+  const groqResult = await tryGroq(userMessage, conversationHistory);
+  if (groqResult) return groqResult;
+
+  // 3) No provider worked
+  const hasGemini = !!process.env.GEMINI_API_KEY;
+  const hasGroq = !!process.env.GROQ_API_KEY;
+  if (!hasGemini && !hasGroq) {
+    throw new Error("No AI provider configured. Set GEMINI_API_KEY or GROQ_API_KEY.");
+  }
+  throw new Error(
+    `All AI providers failed. Gemini: ${hasGemini ? "configured but rate-limited" : "not configured"}. Groq: ${hasGroq ? "configured but failed" : "not configured"}.`
+  );
 }
 
 function parseCoachResponse(raw: string): CoachResponse {
