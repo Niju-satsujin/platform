@@ -1,25 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { GitHubProgressEntry, GitHubProgressFile } from "../lib/github-sync";
 
 // We test the pure helper logic that doesn't require network access.
-// The module is imported dynamically to avoid Prisma client issues in tests.
 
 test("pushProgressUpdate builds correct progress structure", async () => {
-  // Test the progress file structure logic
-  interface GitHubProgressEntry {
-    type: "lesson" | "quest";
-    title: string;
-    partSlug: string;
-    completedAt: string;
-    xpAwarded: number;
-  }
-
-  interface GitHubProgressFile {
-    updatedAt: string;
-    totalCompleted: number;
-    entries: GitHubProgressEntry[];
-  }
-
   const existing: GitHubProgressFile = {
     updatedAt: "2026-01-01T00:00:00.000Z",
     totalCompleted: 1,
@@ -57,20 +42,6 @@ test("pushProgressUpdate builds correct progress structure", async () => {
 });
 
 test("pushProgressUpdate initializes new progress when none exists", () => {
-  interface GitHubProgressEntry {
-    type: "lesson" | "quest";
-    title: string;
-    partSlug: string;
-    completedAt: string;
-    xpAwarded: number;
-  }
-
-  interface GitHubProgressFile {
-    updatedAt: string;
-    totalCompleted: number;
-    entries: GitHubProgressEntry[];
-  }
-
   const newEntry: GitHubProgressEntry = {
     type: "lesson",
     title: "Hello World",

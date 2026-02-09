@@ -8,7 +8,7 @@
 
 const GITHUB_API = "https://api.github.com";
 
-interface GitHubProgressEntry {
+export interface GitHubProgressEntry {
   type: "lesson" | "quest";
   title: string;
   partSlug: string;
@@ -16,7 +16,7 @@ interface GitHubProgressEntry {
   xpAwarded: number;
 }
 
-interface GitHubProgressFile {
+export interface GitHubProgressFile {
   updatedAt: string;
   totalCompleted: number;
   entries: GitHubProgressEntry[];
