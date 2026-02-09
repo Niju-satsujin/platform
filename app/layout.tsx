@@ -1,15 +1,11 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import dynamic from "next/dynamic";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import TopHeader from "@/app/components/top-header";
 import { SessionGuard } from "@/app/components/session-guard";
+import { AIMonitorWrapper } from "@/app/components/ai-monitor-wrapper";
 import "./globals.css";
-
-const AIChatPanel = dynamic(() => import("@/app/components/ai-chat-panel"), {
-  ssr: false,
-});
 
 export const metadata: Metadata = {
   title: "Trust Systems Platform",
@@ -77,7 +73,7 @@ export default async function RootLayout({
         </main>
 
         {/* AI Monitor — floating chat for logged-in users */}
-        {isLoggedIn && <AIChatPanel />}
+        {isLoggedIn && <AIMonitorWrapper />}
       </body>
     </html>
   );
