@@ -7,8 +7,8 @@ import { SessionGuard } from "@/app/components/session-guard";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Trust Systems Platform | Boot.dev",
-  description: "Master C++ systems programming through guided lessons, quests, and spaced-repetition reviews.",
+  title: "Trust Systems Platform",
+  description: "Master systems programming through guided lessons, quests, and spaced-repetition reviews.",
   other: {
     "darkreader-lock": "",
   },

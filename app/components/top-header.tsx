@@ -82,9 +82,9 @@ export default function TopHeader({
       <div className="h-full px-3 md:px-4 flex items-center gap-3">
         <Link href="/" className="shrink-0 flex items-center mr-1 md:mr-2" suppressHydrationWarning>
           <Image
-            src="/img/bootdev-logo-full-small.webp"
-            alt="Boot.dev"
-            width={118}
+            src="/img/platform-logo.svg"
+            alt="Trust Systems"
+            width={140}
             height={28}
             className="h-7 w-auto"
             priority
@@ -215,7 +215,7 @@ export default function TopHeader({
               </div>
 
               <Link
-                href="/progress"
+                href="/profile"
                 className="h-8 w-8 rounded-full overflow-hidden border border-gray-700 hover:border-yellow-500 transition-colors"
                 title={displayName}
                 suppressHydrationWarning

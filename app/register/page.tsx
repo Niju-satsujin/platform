@@ -60,8 +60,8 @@ export default function RegisterPage() {
         {/* Logo header */}
         <div className="text-center mb-8">
           <Image
-            src="/img/bootdev-logo-full-small.webp"
-            alt="Boot.dev"
+            src="/img/platform-logo.svg"
+            alt="Trust Systems"
             width={160}
             height={37}
             className="mx-auto mb-4"
