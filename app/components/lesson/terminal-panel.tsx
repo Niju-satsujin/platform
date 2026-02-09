@@ -36,6 +36,8 @@ export function TerminalPanel({
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [passed, setPassed] = useState(initialPassed);
+  const [defenseSubmissionId, setDefenseSubmissionId] = useState<string | null>(null);
+  const [defensePrompt, setDefensePrompt] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -59,11 +61,84 @@ export function TerminalPanel({
       addLines({ type: "prompt", text: trimmed });
 
       // Built-in commands
+      if (defenseSubmissionId && (trimmed.startsWith("defend ") || trimmed.startsWith("explain "))) {
+        const defenseAnswer = trimmed.replace(/^defend\s+|^explain\s+/, "").trim();
+        if (!defenseAnswer) {
+          addLines(
+            { type: "error", text: "Provide an explanation after 'defend'." },
+            { type: "prompt", text: "" }
+          );
+          return;
+        }
+
+        addLines({ type: "info", text: "Submitting defense response…" });
+        setSubmitting(true);
+
+        const formData = new FormData();
+        if (mode === "quest") {
+          formData.set("questId", lessonId);
+          formData.set("partSlug", partSlug);
+        } else {
+          formData.set("lessonId", lessonId);
+          formData.set("partSlug", partSlug);
+          formData.set("lessonSlug", lessonSlug);
+        }
+        formData.set("submissionId", defenseSubmissionId);
+        formData.set("defenseResponse", defenseAnswer);
+
+        try {
+          const endpoint =
+            mode === "quest"
+              ? "/api/submissions/quest"
+              : "/api/submissions/lesson";
+          const res = await fetch(endpoint, { method: "POST", body: formData });
+          const data = await res.json();
+
+          if (!res.ok) {
+            addLines(
+              { type: "error", text: `✗ ${data.error || "Defense submission failed."}` },
+              { type: "prompt", text: "" }
+            );
+          } else if (data.status === "passed") {
+            setDefenseSubmissionId(null);
+            setDefensePrompt("");
+            setPassed(true);
+            addLines(
+              { type: "success", text: `✓ PASSED — ${data.message}` },
+              { type: "prompt", text: "" }
+            );
+          } else if (data.status === "pending") {
+            setDefensePrompt(data.message || defensePrompt);
+            addLines(
+              { type: "info", text: `Defense: ${data.message || defensePrompt}` },
+              { type: "info", text: "Reply with: defend <your explanation>" },
+              { type: "prompt", text: "" }
+            );
+          } else {
+            setDefenseSubmissionId(null);
+            addLines(
+              { type: "error", text: `✗ FAILED — ${data.message}` },
+              { type: "info", text: "Fix your understanding and submit proof again." },
+              { type: "prompt", text: "" }
+            );
+          }
+        } catch {
+          addLines(
+            { type: "error", text: "✗ Network error while submitting defense response." },
+            { type: "prompt", text: "" }
+          );
+        } finally {
+          setSubmitting(false);
+        }
+        return;
+      }
+
       if (trimmed === "help") {
         addLines(
           { type: "info", text: "Available commands:" },
           { type: "info", text: "  compile    — Show compile/run command" },
           { type: "info", text: "  submit     — Submit pasted output as proof" },
+          { type: "info", text: "  defend X   — Submit defense explanation text" },
           { type: "info", text: "  paste      — Paste mode (multi-line input)" },
           { type: "info", text: "  clear      — Clear terminal" },
           { type: "info", text: "  help       — Show this help" },
@@ -92,6 +167,15 @@ export function TerminalPanel({
       }
 
       if (trimmed === "submit") {
+        if (defenseSubmissionId) {
+          addLines(
+            { type: "info", text: "Defense is pending." },
+            { type: "info", text: "Reply with: defend <your explanation>" },
+            { type: "prompt", text: "" }
+          );
+          return;
+        }
+
         // Collect all non-prompt, non-info lines as proof text
         const proofLines = lines
           .filter((l) => l.type === "output" || l.type === "error")
@@ -137,8 +221,18 @@ export function TerminalPanel({
               { type: "error", text: `✗ ${data.error || "Submission failed."}` },
               { type: "prompt", text: "" }
             );
+          } else if (data.status === "pending") {
+            setDefenseSubmissionId(data.submissionId || null);
+            setDefensePrompt(data.message || "");
+            addLines(
+              { type: "info", text: `Defense: ${data.message}` },
+              { type: "info", text: "Reply with: defend <your explanation>" },
+              { type: "prompt", text: "" }
+            );
           } else if (data.status === "passed") {
             setPassed(true);
+            setDefenseSubmissionId(null);
+            setDefensePrompt("");
             addLines(
               { type: "success", text: `✓ PASSED — ${data.message}` },
               {
@@ -148,6 +242,7 @@ export function TerminalPanel({
               { type: "prompt", text: "" }
             );
           } else {
+            setDefenseSubmissionId(null);
             addLines(
               { type: "error", text: `✗ FAILED — ${data.message}` },
               { type: "info", text: "Fix your code and try again." },
@@ -168,7 +263,7 @@ export function TerminalPanel({
       // Anything else → treat as pasted output
       addLines({ type: "output", text: trimmed }, { type: "prompt", text: "" });
     },
-    [addLines, lines, runCommand, lessonId, partSlug, lessonSlug, mode]
+    [addLines, lines, runCommand, lessonId, partSlug, lessonSlug, mode, defenseSubmissionId, defensePrompt]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

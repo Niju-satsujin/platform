@@ -41,6 +41,9 @@ export function EditorToolbar({
     status: string;
     message: string;
   } | null>(null);
+  const [defenseSubmissionId, setDefenseSubmissionId] = useState<string | null>(null);
+  const [defensePrompt, setDefensePrompt] = useState("");
+  const [defenseResponse, setDefenseResponse] = useState("");
 
   const copyCode = useCallback(async () => {
     try {
@@ -104,6 +107,7 @@ export function EditorToolbar({
     }
     formData.set("pastedText", proofText);
     formData.set("manualPass", "false");
+    formData.set("codeSnapshot", code);
 
     try {
       const endpoint =
@@ -120,7 +124,17 @@ export function EditorToolbar({
         });
       } else {
         setSubmitResult({ status: data.status, message: data.message });
-        if (data.status === "passed") setProofText("");
+        if (data.status === "pending") {
+          setDefenseSubmissionId(data.submissionId || null);
+          setDefensePrompt(data.message || "");
+        } else if (data.status === "passed") {
+          setProofText("");
+          setDefenseSubmissionId(null);
+          setDefensePrompt("");
+          setDefenseResponse("");
+        } else {
+          setDefenseSubmissionId(null);
+        }
       }
     } catch {
       setSubmitResult({
@@ -130,7 +144,61 @@ export function EditorToolbar({
     } finally {
       setSubmitting(false);
     }
-  }, [proofText, lessonId, partSlug, lessonSlug, mode]);
+  }, [proofText, lessonId, partSlug, lessonSlug, mode, code]);
+
+  const submitDefense = useCallback(async () => {
+    if (!defenseSubmissionId || !defenseResponse.trim()) return;
+    setSubmitting(true);
+    setSubmitResult(null);
+
+    const formData = new FormData();
+    if (mode === "quest") {
+      formData.set("questId", lessonId);
+      formData.set("partSlug", partSlug);
+    } else {
+      formData.set("lessonId", lessonId);
+      formData.set("partSlug", partSlug);
+      formData.set("lessonSlug", lessonSlug);
+    }
+    formData.set("submissionId", defenseSubmissionId);
+    formData.set("defenseResponse", defenseResponse);
+    formData.set("codeSnapshot", code);
+
+    try {
+      const endpoint =
+        mode === "quest"
+          ? "/api/submissions/quest"
+          : "/api/submissions/lesson";
+      const res = await fetch(endpoint, { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setSubmitResult({
+          status: "failed",
+          message: data.error || "Defense submission failed.",
+        });
+      } else {
+        setSubmitResult({ status: data.status, message: data.message });
+        if (data.status === "passed") {
+          setProofText("");
+          setDefenseSubmissionId(null);
+          setDefensePrompt("");
+          setDefenseResponse("");
+        } else if (data.status === "pending") {
+          setDefensePrompt(data.message || defensePrompt);
+        } else {
+          setDefenseSubmissionId(null);
+        }
+      }
+    } catch {
+      setSubmitResult({
+        status: "failed",
+        message: "Network error while submitting defense response.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [defenseSubmissionId, defenseResponse, mode, lessonId, partSlug, lessonSlug, code, defensePrompt]);
 
   return (
     <div className="border-t border-gray-700 bg-gray-900 shrink-0">
@@ -239,14 +307,44 @@ export function EditorToolbar({
                 className={`text-sm font-semibold ${
                   submitResult.status === "passed"
                     ? "text-green-400"
+                    : submitResult.status === "pending"
+                      ? "text-yellow-300"
                     : "text-red-400"
                 }`}
               >
-                {submitResult.status === "passed" ? "✅" : "❌"}{" "}
+                {submitResult.status === "passed"
+                  ? "✅"
+                  : submitResult.status === "pending"
+                    ? "⏳"
+                    : "❌"}{" "}
                 {submitResult.message}
               </span>
             )}
           </div>
+          {defenseSubmissionId && (
+            <div className="mt-2 rounded-lg border border-yellow-700/30 bg-yellow-950/30 p-3 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-yellow-300">
+                Defense Mode
+              </p>
+              <p className="text-xs text-gray-200">{defensePrompt}</p>
+              <textarea
+                value={defenseResponse}
+                onChange={(e) => setDefenseResponse(e.target.value)}
+                rows={4}
+                placeholder="Explain your logic and one failure case."
+                className="w-full bg-gray-900 border border-gray-700 rounded-md p-2 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-yellow-500/50 resize-y"
+                disabled={submitting}
+              />
+              <button
+                type="button"
+                onClick={submitDefense}
+                disabled={submitting || !defenseResponse.trim()}
+                className="btn-primary text-sm py-1.5 px-4 disabled:opacity-50"
+              >
+                {submitting ? "Checking…" : "Submit Explanation"}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

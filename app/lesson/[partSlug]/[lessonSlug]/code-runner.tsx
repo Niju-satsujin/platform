@@ -192,6 +192,14 @@ export function CodeRunner({
                 body: JSON.stringify({ lessonId, code, partSlug, lessonSlug }),
               });
               if (saveRes.ok) {
+                const saveData = await saveRes.json();
+                if (saveData.status !== "passed") {
+                  addOutput(
+                    "info",
+                    `Defense required before completion: ${saveData.message || "Explain your reasoning in the proof panel."}`
+                  );
+                  return;
+                }
                 onPass();
               }
             } catch { /* ignore save errors */ }

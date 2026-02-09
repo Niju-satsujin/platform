@@ -22,6 +22,9 @@ export function SubmissionForm({
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<{ status: string; message: string } | null>(null);
+  const [defenseSubmissionId, setDefenseSubmissionId] = useState<string | null>(null);
+  const [defensePrompt, setDefensePrompt] = useState("");
+  const [defenseResponse, setDefenseResponse] = useState("");
 
   async function submit(manualPass: boolean) {
     if (!text.trim() && !proofFile) {
@@ -55,9 +58,20 @@ export function SubmissionForm({
       }
 
       setResult({ status: data.status, message: data.message });
+      if (data.status === "pending") {
+        setDefenseSubmissionId(data.submissionId || null);
+        setDefensePrompt(data.message || "");
+        return;
+      }
+
       if (data.status === "passed") {
         if (!hasEditor) setText("");
         setProofFile(null);
+        setDefenseSubmissionId(null);
+        setDefensePrompt("");
+        setDefenseResponse("");
+      } else {
+        setDefenseSubmissionId(null);
       }
     } catch {
       setResult({ status: "failed", message: "Network error while submitting proof." });
@@ -66,8 +80,60 @@ export function SubmissionForm({
     }
   }
 
+  async function submitDefenseResponse() {
+    if (!defenseSubmissionId || !defenseResponse.trim()) {
+      setResult({ status: "failed", message: "Write your explanation before continuing defense." });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setResult(null);
+
+    const formData = new FormData();
+    formData.set("lessonId", lessonId);
+    formData.set("partSlug", partSlug);
+    formData.set("lessonSlug", lessonSlug);
+    formData.set("submissionId", defenseSubmissionId);
+    formData.set("defenseResponse", defenseResponse);
+    if (hasEditor) {
+      formData.set("codeSnapshot", text);
+    }
+
+    try {
+      const response = await fetch("/api/submissions/lesson", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setResult({ status: "failed", message: data.error || "Defense submission failed." });
+        return;
+      }
+
+      setResult({ status: data.status, message: data.message });
+      if (data.status === "passed") {
+        if (!hasEditor) setText("");
+        setProofFile(null);
+        setDefenseSubmissionId(null);
+        setDefensePrompt("");
+        setDefenseResponse("");
+      } else if (data.status === "pending") {
+        setDefensePrompt(data.message || defensePrompt);
+      } else {
+        setDefenseSubmissionId(null);
+      }
+    } catch {
+      setResult({ status: "failed", message: "Network error while submitting defense." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   const resultClass = result?.status === "passed"
     ? "bg-green-950/50 border-green-800/20 text-green-500"
+    : result?.status === "pending"
+      ? "bg-yellow-950/50 border-yellow-700/30 text-yellow-300"
     : "bg-red-950/50 border-red-500/20 text-red-400";
 
   if (hasEditor) {
@@ -104,6 +170,28 @@ export function SubmissionForm({
             className="w-full text-xs text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border file:border-gray-600 file:bg-gray-800 file:text-gray-200"
           />
           {result && <div className={`text-xs p-2 rounded-md border ${resultClass}`}>{result.message}</div>}
+          {defenseSubmissionId && (
+            <div className="rounded-md border border-yellow-700/30 bg-yellow-950/30 p-2 space-y-2">
+              <p className="text-[11px] font-semibold text-yellow-300 uppercase tracking-wide">Defense Mode</p>
+              <p className="text-xs text-gray-200">{defensePrompt}</p>
+              <textarea
+                value={defenseResponse}
+                onChange={(e) => setDefenseResponse(e.target.value)}
+                placeholder="Explain why your solution works and one failure case."
+                rows={4}
+                className="w-full bg-gray-900 border border-gray-700 rounded-md p-2 text-xs text-gray-200 placeholder:text-gray-500"
+                disabled={isSubmitting}
+              />
+              <button
+                type="button"
+                onClick={submitDefenseResponse}
+                disabled={isSubmitting || !defenseResponse.trim()}
+                className="btn-primary !py-1.5 !px-3 !text-xs disabled:opacity-40"
+              >
+                {isSubmitting ? "Checking..." : "Submit Explanation"}
+              </button>
+            </div>
+          )}
           {passed && !result && (
             <div className="text-xs text-green-500">This lesson is already passed. New submissions are still allowed.</div>
           )}
@@ -130,6 +218,29 @@ export function SubmissionForm({
       />
 
       {result && <div className={`text-sm p-3 rounded-lg border ${resultClass}`}>{result.message}</div>}
+
+      {defenseSubmissionId && (
+        <div className="rounded-lg border border-yellow-700/30 bg-yellow-950/30 p-3 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-yellow-300">Defense Mode</p>
+          <p className="text-sm text-gray-200">{defensePrompt}</p>
+          <textarea
+            value={defenseResponse}
+            onChange={(e) => setDefenseResponse(e.target.value)}
+            placeholder="Explain why your solution works and one failure case."
+            rows={4}
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm text-gray-200 placeholder:text-gray-500"
+            disabled={isSubmitting}
+          />
+          <button
+            type="button"
+            onClick={submitDefenseResponse}
+            disabled={isSubmitting || !defenseResponse.trim()}
+            className="btn-primary disabled:opacity-40"
+          >
+            {isSubmitting ? "Checking..." : "Submit Explanation"}
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <button

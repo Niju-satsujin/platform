@@ -2,6 +2,12 @@ import { prisma } from "@/lib/db";
 import { getReviewSchedule, parseReviewScheduleDays } from "@/lib/schedule-reviews";
 import { validateProof } from "@/lib/validate-proof";
 import { logProgressEvent } from "@/lib/progress-events";
+import {
+  buildTutorMessage,
+  callAITutor,
+  type DefenseVerdict,
+  type TutorResponse,
+} from "@/lib/ai-tutor";
 import type { ProofRules } from "@/lib/schemas";
 
 type SubmissionStatus = "pending" | "passed" | "failed";
@@ -13,12 +19,28 @@ interface SubmitProofInput {
   pastedText?: string;
   uploadPath?: string;
   manualPass?: boolean;
+  submissionId?: string;
+  defenseResponse?: string;
+  codeSnapshot?: string;
 }
 
 interface SubmitProofResult {
   status: SubmissionStatus;
   message: string;
   submissionId: string;
+  defenseVerdict?: DefenseVerdict;
+  coachMode?: string;
+  nextActions?: string[];
+  flashcardsCreated?: number;
+}
+
+interface SubmissionDefenseMeta {
+  challengeQuestion: string;
+  coachMode: string;
+  lastVerdict: DefenseVerdict;
+  createdAt: string;
+  answer?: string;
+  feedback?: string;
 }
 
 function parseProofRules(rawPrimary?: string | null, rawFallback?: string | null): ProofRules {
@@ -30,6 +52,75 @@ function parseProofRules(rawPrimary?: string | null, rawFallback?: string | null
     input: parsed.input ?? "paste_or_upload",
     regexPatterns: Array.isArray(parsed.regexPatterns) ? parsed.regexPatterns : [],
     instructions: parsed.instructions ?? "Submit proof for review.",
+  };
+}
+
+function parseDefenseMeta(raw?: string | null): SubmissionDefenseMeta | null {
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as { defense?: SubmissionDefenseMeta };
+    if (!parsed.defense) return null;
+    if (typeof parsed.defense.challengeQuestion !== "string") return null;
+    if (typeof parsed.defense.coachMode !== "string") return null;
+    if (typeof parsed.defense.lastVerdict !== "string") return null;
+
+    return parsed.defense;
+  } catch {
+    return null;
+  }
+}
+
+function serializeDefenseMeta(meta: SubmissionDefenseMeta): string {
+  return JSON.stringify({ defense: meta });
+}
+
+function buildFallbackChallenge(): TutorResponse {
+  return {
+    coach_mode: "defense_phase",
+    defense_verdict: "pending",
+    message:
+      "Explain why your proof shows the lesson goal is met. Include one failure case and what your code does.",
+    diagnosis: {
+      root_cause: "concept_gap",
+      confidence: 0.5,
+    },
+    flashcards_to_create: [],
+    next_actions: [
+      "Describe one critical decision in your solution.",
+      "Name one failure mode and expected behavior.",
+    ],
+  };
+}
+
+function buildFallbackEvaluation(explanation: string): TutorResponse {
+  const normalized = explanation.trim().toLowerCase();
+  const strongSignals = ["because", "if", "when", "failure", "error", "retry", "timeout"];
+  const score = strongSignals.reduce((count, token) => (normalized.includes(token) ? count + 1 : count), 0);
+  const pass = explanation.trim().length >= 100 && score >= 2;
+
+  return {
+    coach_mode: "defense_phase",
+    defense_verdict: pass ? "pass" : "fail",
+    message: pass
+      ? "Explanation is acceptable. You connected behavior to failure handling."
+      : "Explanation is still shallow. Describe exact behavior on a real failure path.",
+    diagnosis: {
+      root_cause: pass ? "logic" : "concept_gap",
+      confidence: pass ? 0.65 : 0.55,
+    },
+    flashcards_to_create: pass
+      ? []
+      : [
+          {
+            front: "Why must proof include at least one failure path?",
+            back: "Because systems can appear correct on happy path while failing under error conditions.",
+            tag: "defense_mode",
+          },
+        ],
+    next_actions: pass
+      ? ["Submit next lesson proof."]
+      : ["Re-read the lesson pass criteria.", "Explain behavior for one concrete failure scenario and retry."],
   };
 }
 
@@ -162,7 +253,6 @@ async function handleLessonPass(userId: string, lessonId: string, submissionId: 
 
   await updateStreak(userId);
 
-  // Log progress event
   await logProgressEvent(userId, isFirstPass ? "lesson_completed" : "proof_submitted", {
     lessonId,
     lessonTitle: lesson.title,
@@ -204,7 +294,6 @@ async function handleQuestPass(userId: string, questId: string, submissionId: st
 
   await updateStreak(userId);
 
-  // Log progress event
   await logProgressEvent(userId, isFirstPass ? "quest_completed" : "proof_submitted", {
     questId,
     questTitle: quest.title,
@@ -214,7 +303,219 @@ async function handleQuestPass(userId: string, questId: string, submissionId: st
   });
 }
 
+async function createTutorFlashcards(params: {
+  userId: string;
+  lessonId?: string | null;
+  questId?: string | null;
+  cards?: TutorResponse["flashcards_to_create"];
+}): Promise<number> {
+  if (!params.cards || params.cards.length === 0) return 0;
+
+  let created = 0;
+  for (const card of params.cards.slice(0, 2)) {
+    try {
+      const tags = {
+        tag: card.tag,
+        lessonId: params.lessonId || undefined,
+        questId: params.questId || undefined,
+      };
+
+      const flashcard = await prisma.flashcard.create({
+        data: {
+          front: card.front,
+          back: card.back,
+          type: "concept",
+          tags: JSON.stringify(tags),
+          sourceRef: "ai-defense",
+        },
+      });
+
+      await prisma.userFlashcard.create({
+        data: {
+          userId: params.userId,
+          cardId: flashcard.id,
+          dueAt: new Date(),
+        },
+      });
+
+      created += 1;
+    } catch (error) {
+      console.error("Failed to create defense flashcard", error);
+    }
+  }
+
+  return created;
+}
+
+async function buildDefenseChallenge(params: {
+  proofText: string;
+  codeSnapshot?: string;
+  targetType: "lesson" | "quest";
+  targetTitle: string;
+}) {
+  const tutorMessage = buildTutorMessage({
+    interaction_mode: "DEFENSE",
+    current_phase: "submission_gate",
+    user_message:
+      `User submitted ${params.targetType} proof for ${params.targetTitle}. ` +
+      "Ask exactly one short Feynman question that tests deep understanding. " +
+      "Set defense_verdict to pending.",
+    proof_text: params.proofText,
+    code: params.codeSnapshot,
+  });
+
+  try {
+    const response = await callAITutor(tutorMessage);
+    return {
+      ...response,
+      defense_verdict: "pending" as DefenseVerdict,
+    };
+  } catch {
+    return buildFallbackChallenge();
+  }
+}
+
+async function evaluateDefenseAnswer(params: {
+  proofText: string;
+  challengeQuestion: string;
+  defenseAnswer: string;
+  codeSnapshot?: string;
+  targetType: "lesson" | "quest";
+  targetTitle: string;
+}) {
+  const tutorMessage = buildTutorMessage({
+    interaction_mode: "DEFENSE",
+    current_phase: "defense_review",
+    user_message:
+      `Evaluate this user explanation for ${params.targetType} ${params.targetTitle}. ` +
+      "Set defense_verdict to pass or fail. Never return pending in this evaluation round.",
+    proof_text: params.proofText,
+    challenge_question: params.challengeQuestion,
+    user_explanation: params.defenseAnswer,
+    code: params.codeSnapshot,
+  });
+
+  try {
+    const response = await callAITutor(tutorMessage);
+    if (response.defense_verdict === "pending") {
+      return {
+        ...response,
+        defense_verdict: "fail" as DefenseVerdict,
+      };
+    }
+    return response;
+  } catch {
+    return buildFallbackEvaluation(params.defenseAnswer);
+  }
+}
+
+async function continueDefenseSubmission(input: SubmitProofInput): Promise<SubmitProofResult> {
+  if (!input.submissionId) {
+    throw new Error("submissionId is required for defense evaluation");
+  }
+
+  const defenseAnswer = input.defenseResponse?.trim() || "";
+  if (!defenseAnswer) {
+    throw new Error("defenseResponse is required for defense evaluation");
+  }
+
+  const submission = await prisma.submission.findFirst({
+    where: {
+      id: input.submissionId,
+      userId: input.userId,
+    },
+    include: {
+      lesson: true,
+      quest: true,
+    },
+  });
+
+  if (!submission) {
+    throw new Error("Submission not found");
+  }
+
+  if (submission.status !== "pending") {
+    return {
+      status: submission.status as SubmissionStatus,
+      message: "This submission is already resolved.",
+      submissionId: submission.id,
+      defenseVerdict: submission.status === "passed" ? "pass" : "fail",
+    };
+  }
+
+  const defenseMeta = parseDefenseMeta(submission.text);
+  const challengeQuestion = defenseMeta?.challengeQuestion || buildFallbackChallenge().message;
+  const targetTitle = submission.lesson?.title || submission.quest?.title || "submission";
+
+  const evaluation = await evaluateDefenseAnswer({
+    proofText: submission.pastedText || "",
+    challengeQuestion,
+    defenseAnswer,
+    codeSnapshot: input.codeSnapshot,
+    targetType: submission.lessonId ? "lesson" : "quest",
+    targetTitle,
+  });
+
+  const verdict = evaluation.defense_verdict === "pass" ? "passed" : "failed";
+
+  const updatedMeta: SubmissionDefenseMeta = {
+    challengeQuestion,
+    coachMode: evaluation.coach_mode,
+    lastVerdict: evaluation.defense_verdict,
+    createdAt: defenseMeta?.createdAt || new Date().toISOString(),
+    answer: defenseAnswer,
+    feedback: evaluation.message,
+  };
+
+  await prisma.submission.update({
+    where: { id: submission.id },
+    data: {
+      status: verdict,
+      text: serializeDefenseMeta(updatedMeta),
+    },
+  });
+
+  if (verdict === "passed") {
+    if (submission.lessonId) {
+      await handleLessonPass(input.userId, submission.lessonId, submission.id);
+    }
+    if (submission.questId) {
+      await handleQuestPass(input.userId, submission.questId, submission.id);
+    }
+  } else {
+    await logProgressEvent(input.userId, "proof_submitted", {
+      lessonId: submission.lessonId || undefined,
+      questId: submission.questId || undefined,
+      status: "failed",
+      reason: "defense_failed",
+    });
+  }
+
+  const flashcardsCreated = verdict === "failed"
+    ? await createTutorFlashcards({
+        userId: input.userId,
+        lessonId: submission.lessonId,
+        questId: submission.questId,
+        cards: evaluation.flashcards_to_create,
+      })
+    : 0;
+
+  return {
+    status: verdict,
+    message: evaluation.message,
+    submissionId: submission.id,
+    defenseVerdict: evaluation.defense_verdict,
+    coachMode: evaluation.coach_mode,
+    nextActions: evaluation.next_actions || [],
+    flashcardsCreated,
+  };
+}
+
 export async function submitProof(input: SubmitProofInput): Promise<SubmitProofResult> {
+  if (input.submissionId || input.defenseResponse) {
+    return continueDefenseSubmission(input);
+  }
+
   const targetCount = Number(Boolean(input.lessonId)) + Number(Boolean(input.questId));
   if (targetCount !== 1) {
     throw new Error("Submit proof requires exactly one target: lessonId or questId");
@@ -231,22 +532,100 @@ export async function submitProof(input: SubmitProofInput): Promise<SubmitProofR
     if (!lesson) throw new Error("Lesson not found");
 
     const proofRules = parseProofRules(lesson.proofRulesJson, lesson.proofRules);
-    const autoResult = pastedText ? validateProof(pastedText, proofRules) : {
-      passed: false,
-      message: "No pasted text to auto-check. Use Mark Passed if review is manual.",
-    };
+    const autoResult = pastedText
+      ? validateProof(pastedText, proofRules)
+      : {
+          passed: false,
+          message: "No pasted text to auto-check. Use Mark Passed if review is manual.",
+        };
 
     const shouldPass = Boolean(input.manualPass) || autoResult.passed;
-    const status: SubmissionStatus = shouldPass ? "passed" : "failed";
-    const message = input.manualPass
-      ? "Marked as passed manually."
-      : autoResult.message;
+    if (!shouldPass) {
+      const submission = await prisma.submission.create({
+        data: {
+          userId: input.userId,
+          lessonId: input.lessonId,
+          status: "failed",
+          text: pastedText || null,
+          pastedText: pastedText || null,
+          filePath: input.uploadPath || null,
+          uploadPath: input.uploadPath || null,
+        },
+      });
+
+      await logProgressEvent(input.userId, "proof_submitted", {
+        lessonId: input.lessonId,
+        status: "failed",
+      });
+
+      return {
+        status: "failed",
+        message: autoResult.message,
+        submissionId: submission.id,
+        defenseVerdict: "fail",
+      };
+    }
+
+    const challenge = await buildDefenseChallenge({
+      proofText: pastedText,
+      codeSnapshot: input.codeSnapshot,
+      targetType: "lesson",
+      targetTitle: lesson.title,
+    });
+
+    const defenseMeta: SubmissionDefenseMeta = {
+      challengeQuestion: challenge.message,
+      coachMode: challenge.coach_mode,
+      lastVerdict: "pending",
+      createdAt: new Date().toISOString(),
+    };
 
     const submission = await prisma.submission.create({
       data: {
         userId: input.userId,
         lessonId: input.lessonId,
-        status,
+        status: "pending",
+        text: serializeDefenseMeta(defenseMeta),
+        pastedText: pastedText || null,
+        filePath: input.uploadPath || null,
+        uploadPath: input.uploadPath || null,
+      },
+    });
+
+    await logProgressEvent(input.userId, "proof_submitted", {
+      lessonId: input.lessonId,
+      status: "pending",
+      reason: "defense_challenge_issued",
+    });
+
+    return {
+      status: "pending",
+      message: challenge.message,
+      submissionId: submission.id,
+      defenseVerdict: "pending",
+      coachMode: challenge.coach_mode,
+      nextActions: challenge.next_actions || [],
+    };
+  }
+
+  const quest = await prisma.quest.findUnique({ where: { id: input.questId! } });
+  if (!quest) throw new Error("Quest not found");
+
+  const proofRules = parseProofRules(quest.proofRulesJson, quest.proofRules);
+  const autoResult = pastedText
+    ? validateProof(pastedText, proofRules)
+    : {
+        passed: false,
+        message: "No pasted text to auto-check. Use Mark Passed if review is manual.",
+      };
+
+  const shouldPass = Boolean(input.manualPass) || autoResult.passed;
+  if (!shouldPass) {
+    const submission = await prisma.submission.create({
+      data: {
+        userId: input.userId,
+        questId: input.questId,
+        status: "failed",
         text: pastedText || null,
         pastedText: pastedText || null,
         filePath: input.uploadPath || null,
@@ -254,55 +633,57 @@ export async function submitProof(input: SubmitProofInput): Promise<SubmitProofR
       },
     });
 
-    if (status === "passed") {
-      await handleLessonPass(input.userId, input.lessonId, submission.id);
-    } else {
-      // Log failed proof attempt
-      await logProgressEvent(input.userId, "proof_submitted", {
-        lessonId: input.lessonId,
-        status: "failed",
-      });
-    }
+    await logProgressEvent(input.userId, "proof_submitted", {
+      questId: input.questId,
+      status: "failed",
+    });
 
-    return { status, message, submissionId: submission.id };
+    return {
+      status: "failed",
+      message: autoResult.message,
+      submissionId: submission.id,
+      defenseVerdict: "fail",
+    };
   }
 
-  const quest = await prisma.quest.findUnique({ where: { id: input.questId! } });
-  if (!quest) throw new Error("Quest not found");
+  const challenge = await buildDefenseChallenge({
+    proofText: pastedText,
+    codeSnapshot: input.codeSnapshot,
+    targetType: "quest",
+    targetTitle: quest.title,
+  });
 
-  const proofRules = parseProofRules(quest.proofRulesJson, quest.proofRules);
-  const autoResult = pastedText ? validateProof(pastedText, proofRules) : {
-    passed: false,
-    message: "No pasted text to auto-check. Use Mark Passed if review is manual.",
+  const defenseMeta: SubmissionDefenseMeta = {
+    challengeQuestion: challenge.message,
+    coachMode: challenge.coach_mode,
+    lastVerdict: "pending",
+    createdAt: new Date().toISOString(),
   };
-
-  const shouldPass = Boolean(input.manualPass) || autoResult.passed;
-  const status: SubmissionStatus = shouldPass ? "passed" : "failed";
-  const message = input.manualPass
-    ? "Marked as passed manually."
-    : autoResult.message;
 
   const submission = await prisma.submission.create({
     data: {
       userId: input.userId,
       questId: input.questId,
-      status,
-      text: pastedText || null,
+      status: "pending",
+      text: serializeDefenseMeta(defenseMeta),
       pastedText: pastedText || null,
       filePath: input.uploadPath || null,
       uploadPath: input.uploadPath || null,
     },
   });
 
-  if (status === "passed") {
-    await handleQuestPass(input.userId, input.questId!, submission.id);
-  } else {
-    // Log failed proof attempt
-    await logProgressEvent(input.userId, "proof_submitted", {
-      questId: input.questId,
-      status: "failed",
-    });
-  }
+  await logProgressEvent(input.userId, "proof_submitted", {
+    questId: input.questId,
+    status: "pending",
+    reason: "defense_challenge_issued",
+  });
 
-  return { status, message, submissionId: submission.id };
+  return {
+    status: "pending",
+    message: challenge.message,
+    submissionId: submission.id,
+    defenseVerdict: "pending",
+    coachMode: challenge.coach_mode,
+    nextActions: challenge.next_actions || [],
+  };
 }

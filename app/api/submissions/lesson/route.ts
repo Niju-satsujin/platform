@@ -18,6 +18,10 @@ export async function POST(request: Request) {
     const lessonSlug = String(formData.get("lessonSlug") || "").trim();
     const pastedText = String(formData.get("pastedText") || "");
     const manualPass = String(formData.get("manualPass") || "false") === "true";
+    const submissionId = String(formData.get("submissionId") || "").trim();
+    const defenseResponse = String(formData.get("defenseResponse") || "").trim();
+    const codeSnapshotRaw = String(formData.get("codeSnapshot") || "");
+    const codeSnapshot = codeSnapshotRaw.trim() ? codeSnapshotRaw : undefined;
 
     if (!lessonId) {
       return NextResponse.json({ error: "lessonId is required" }, { status: 400 });
@@ -35,6 +39,9 @@ export async function POST(request: Request) {
       pastedText,
       uploadPath,
       manualPass,
+      submissionId: submissionId || undefined,
+      defenseResponse: defenseResponse || undefined,
+      codeSnapshot,
     });
 
     const lesson = await prisma.lesson.findUnique({
@@ -61,6 +68,10 @@ export async function POST(request: Request) {
       message: result.message,
       submissionId: result.submissionId,
       uploadPath,
+      defenseVerdict: result.defenseVerdict,
+      coachMode: result.coachMode,
+      nextActions: result.nextActions,
+      flashcardsCreated: result.flashcardsCreated,
     });
   } catch (error) {
     console.error(error);

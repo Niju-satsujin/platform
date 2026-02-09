@@ -32,11 +32,23 @@
 - Quick-review workflow includes `Mark Reviewed` action and prompts.
 - Part 1 lessons + quest rewritten in simple English.
 - Week 2 (Days 8-13) rewritten to Day 1 quality format.
+- AI Tutor core module added with strict JSON contract:
+  - `lib/ai-tutor.ts`
+  - Supports `interaction_mode` flows for Monitor/Defense.
+  - Returns normalized `coach_mode`, `defense_verdict`, diagnosis, flashcards, and next actions.
+- Defense backend gate is active in submissions:
+  - `lib/submissions.ts` now requires challenge/explanation flow for pass candidates.
+  - `POST /api/submissions/lesson` and `POST /api/submissions/quest` accept defense round 2 fields.
+  - `POST /api/ai/tutor` added for strict-schema tutor calls.
+- Defense UI interceptor is wired:
+  - `ProofBox`, lesson/quest submission forms, and editor/terminal submit widgets now handle `pending` and collect explanation.
+  - Round 2 submission sends `submissionId` + `defenseResponse` and updates final verdict in place.
 
 ## What Is Unfinished
 - Migration SQL was added but not executed in this environment.
 - Content DB needs re-sync after Week 2 rewrite.
 - Full runtime QA (manual app walkthrough + `npm test`) is pending because Node.js is not available in this terminal.
+- Full end-to-end QA of the new defense flow is still pending in browser (happy path + fail path).
 
 ## How To Run Locally
 1. Install Node.js 20+.

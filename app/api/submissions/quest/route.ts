@@ -17,6 +17,10 @@ export async function POST(request: Request) {
     const partSlug = String(formData.get("partSlug") || "").trim();
     const pastedText = String(formData.get("pastedText") || "");
     const manualPass = String(formData.get("manualPass") || "false") === "true";
+    const submissionId = String(formData.get("submissionId") || "").trim();
+    const defenseResponse = String(formData.get("defenseResponse") || "").trim();
+    const codeSnapshotRaw = String(formData.get("codeSnapshot") || "");
+    const codeSnapshot = codeSnapshotRaw.trim() ? codeSnapshotRaw : undefined;
 
     if (!questId) {
       return NextResponse.json({ error: "questId is required" }, { status: 400 });
@@ -34,6 +38,9 @@ export async function POST(request: Request) {
       pastedText,
       uploadPath,
       manualPass,
+      submissionId: submissionId || undefined,
+      defenseResponse: defenseResponse || undefined,
+      codeSnapshot,
     });
 
     const quest = await prisma.quest.findUnique({
@@ -59,6 +66,10 @@ export async function POST(request: Request) {
       message: result.message,
       submissionId: result.submissionId,
       uploadPath,
+      defenseVerdict: result.defenseVerdict,
+      coachMode: result.coachMode,
+      nextActions: result.nextActions,
+      flashcardsCreated: result.flashcardsCreated,
     });
   } catch (error) {
     console.error(error);

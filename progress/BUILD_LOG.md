@@ -309,3 +309,90 @@
   - file edits via shell heredoc
 - Next step:
   - Re-run `npm run content:sync` locally to load new Week 2 content.
+
+## Entry — AI Tutor Engine
+- UTC timestamp: 2026-02-09T10:49:05Z
+- What changed:
+  - Added new AI Tutor module implementing the requested role/rulebook and strict JSON response contract.
+  - Implemented provider calls with Gemini primary + Groq fallback for Monitor/Defense usage.
+  - Added strict parser + normalization for `coach_mode`, `defense_verdict`, `diagnosis`, `flashcards_to_create`, and `next_actions`.
+  - Added helper to build structured tutor prompt payloads for backend routes.
+- Files created/modified:
+  - `lib/ai-tutor.ts` (new)
+- Commands run:
+  - `sed -n '1,260p' progress/BUILD_LOG.md`
+  - `sed -n '1,260p' progress/TODO.md`
+  - `sed -n '1,260p' progress/HANDOFF.md`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Integrate defense gate into lesson/quest submission APIs so submit returns pending challenge before completion.
+
+## Entry — Defense Backend Gate
+- UTC timestamp: 2026-02-09T10:51:58Z
+- What changed:
+  - Reworked submission engine to support two-phase Defense flow.
+  - Submit now branches as:
+    - phase 1: if proof is candidate pass -> create `pending` submission + return challenge question.
+    - phase 2: evaluate `defenseResponse` against challenge -> update to `passed` or `failed`.
+  - Added fallback challenge/evaluation logic if AI provider fails.
+  - Added flashcard creation on defense failure from tutor response cards.
+  - Extended lesson/quest submission APIs to accept and return defense fields:
+    - request: `submissionId`, `defenseResponse`, `codeSnapshot`
+    - response: `defenseVerdict`, `coachMode`, `nextActions`, `flashcardsCreated`
+  - Added dedicated tutor endpoint: `POST /api/ai/tutor` for strict schema Monitor/Defense calls.
+- Files created/modified:
+  - `lib/submissions.ts`
+  - `app/api/submissions/lesson/route.ts`
+  - `app/api/submissions/quest/route.ts`
+  - `app/api/ai/tutor/route.ts` (new)
+- Commands run:
+  - `sed -n '1,360p' lib/submissions.ts`
+  - `sed -n '1,320p' app/api/submissions/lesson/route.ts`
+  - `sed -n '1,320p' app/api/submissions/quest/route.ts`
+  - file edits via patch/heredoc
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Update all submit UI flows to render challenge question and post explanation for defense round 2.
+
+## Entry — Defense UI Interceptor
+- UTC timestamp: 2026-02-09T10:55:23Z
+- What changed:
+  - Added round-2 Defense interaction UI to proof submit components.
+  - Submit flows now handle `status: pending` by rendering challenge prompt and explanation input.
+  - Added follow-up requests using `submissionId` + `defenseResponse` to complete defense verdict.
+  - Updated status banners to include pending state (not only pass/fail).
+  - Updated legacy `/api/submit-lesson` route to use defense-gated submission service.
+  - Updated legacy code runner save behavior to avoid marking pass while defense is pending.
+- Files created/modified:
+  - `app/components/lesson/proof-box.tsx`
+  - `app/lesson/[partSlug]/[lessonSlug]/submission-form.tsx`
+  - `app/quest/[partSlug]/quest-form.tsx`
+  - `app/components/lesson/editor-toolbar.tsx`
+  - `app/components/lesson/terminal-panel.tsx`
+  - `app/api/submit-lesson/route.ts`
+  - `app/lesson/[partSlug]/[lessonSlug]/code-runner.tsx`
+- Commands run:
+  - file edits via patch/heredoc
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Run tests/lint/type checks and fix any regressions from defense integration.
+
+## Entry — QA Attempt + Docs Update
+- UTC timestamp: 2026-02-09T10:57:15Z
+- What changed:
+  - Attempted to run project validation commands (`npm run test`, `npm run lint`) but the environment has no `node`/`npm` binaries available.
+  - Performed manual syntax review across all modified backend/UI files to catch integration errors.
+  - Updated README with Defense Mode flow and AI Tutor endpoint/provider notes.
+- Files created/modified:
+  - `README.md`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `npm run test` (failed: `npm: command not found`)
+  - `npm run lint` (failed: `npm: command not found`)
+  - `which node || true; which npm || true`
+  - `git status --short`
+  - `git diff -- ...`
+  - manual `sed -n` scans on changed files
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Execute full runtime validation in a Node-enabled environment and complete final QA walkthrough.

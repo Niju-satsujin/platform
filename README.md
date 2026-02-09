@@ -76,6 +76,22 @@ Lesson + quest submission supports:
 - optional file upload (stored locally under `/uploads`)
 - auto-check using regex rules if configured
 - manual pass fallback (`Mark Passed`)
+- defense gate for pass candidates:
+  - round 1: returns `pending` + challenge question
+  - round 2: submit explanation (`submissionId` + `defenseResponse`) to get final `pass`/`fail`
+
+## AI Tutor (Defense + Monitor)
+
+- System behavior is implemented in `lib/ai-tutor.ts`.
+- Strict response contract:
+  - `coach_mode`
+  - `defense_verdict`
+  - `message`
+  - optional `diagnosis`, `flashcards_to_create`, `next_actions`
+- API route: `POST /api/ai/tutor`
+- Providers:
+  - Gemini (`GEMINI_API_KEY`)
+  - Groq fallback (`GROQ_API_KEY`)
 
 ## Routes
 

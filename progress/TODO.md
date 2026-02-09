@@ -26,4 +26,7 @@
 - [x] Integrate visual mapping pack + hero visuals + attribution
 - [x] Rewrite Part 1 lessons and quest in simple English
 - [x] Rewrite Week 2 (Days 8-13) to Day 1 quality
+- [x] Add AI Tutor engine with strict JSON schema contract (`coach_mode` + `defense_verdict`)
+- [x] Add Defense Mode submission gate (pending challenge before pass/fail)
+- [x] Update submit UI flows to support challenge/explanation round trip
 - [ ] Final QA walkthrough and finalize HANDOFF snapshot

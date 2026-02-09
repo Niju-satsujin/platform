@@ -29,6 +29,9 @@ export function ProofBox({
     status: string;
     message: string;
   } | null>(null);
+  const [defenseSubmissionId, setDefenseSubmissionId] = useState<string | null>(null);
+  const [defensePrompt, setDefensePrompt] = useState<string>("");
+  const [defenseResponse, setDefenseResponse] = useState("");
 
   async function submit(manualPass: boolean) {
     if (!text.trim() && !proofFile) {
@@ -77,9 +80,20 @@ export function ProofBox({
       }
 
       setResult({ status: data.status, message: data.message });
+      if (data.status === "pending") {
+        setDefenseSubmissionId(data.submissionId || null);
+        setDefensePrompt(data.message || "");
+        return;
+      }
+
       if (data.status === "passed") {
         setText("");
         setProofFile(null);
+        setDefenseSubmissionId(null);
+        setDefensePrompt("");
+        setDefenseResponse("");
+      } else {
+        setDefenseSubmissionId(null);
       }
     } catch {
       setResult({
@@ -91,10 +105,77 @@ export function ProofBox({
     }
   }
 
+  async function submitDefense() {
+    if (!defenseSubmissionId || !defenseResponse.trim()) {
+      setResult({
+        status: "failed",
+        message: "Write your explanation before continuing defense.",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setResult(null);
+
+    const formData = new FormData();
+    if (mode === "quest") {
+      formData.set("questId", lessonId);
+      formData.set("partSlug", partSlug);
+    } else {
+      formData.set("lessonId", lessonId);
+      formData.set("partSlug", partSlug);
+      formData.set("lessonSlug", lessonSlug);
+    }
+    formData.set("submissionId", defenseSubmissionId);
+    formData.set("defenseResponse", defenseResponse);
+
+    try {
+      const endpoint =
+        mode === "quest"
+          ? "/api/submissions/quest"
+          : "/api/submissions/lesson";
+      const response = await fetch(endpoint, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setResult({
+          status: "failed",
+          message: data.error || "Defense submission failed.",
+        });
+        return;
+      }
+
+      setResult({ status: data.status, message: data.message });
+      if (data.status === "passed") {
+        setText("");
+        setProofFile(null);
+        setDefenseSubmissionId(null);
+        setDefensePrompt("");
+        setDefenseResponse("");
+      } else if (data.status === "pending") {
+        setDefensePrompt(data.message || defensePrompt);
+      } else {
+        setDefenseSubmissionId(null);
+      }
+    } catch {
+      setResult({
+        status: "failed",
+        message: "Network error while submitting defense response.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   const resultBg =
     result?.status === "passed"
       ? "bg-green-950/50 border-green-800/20 text-green-400"
-      : "bg-red-950/50 border-red-500/20 text-red-400";
+      : result?.status === "pending"
+        ? "bg-yellow-950/50 border-yellow-700/30 text-yellow-300"
+        : "bg-red-950/50 border-red-500/20 text-red-400";
 
   return (
     <section className="game-card p-5">
@@ -136,7 +217,11 @@ export function ProofBox({
           <div
             className={`text-sm p-3 rounded-lg border font-medium ${resultBg}`}
           >
-            {result.status === "passed" ? "✅ " : "❌ "}
+            {result.status === "passed"
+              ? "✅ "
+              : result.status === "pending"
+                ? "⏳ "
+                : "❌ "}
             {result.message}
           </div>
         )}
@@ -160,6 +245,30 @@ export function ProofBox({
             Mark Passed
           </button>
         </div>
+
+        {defenseSubmissionId && (
+          <div className="rounded-lg border border-yellow-700/30 bg-yellow-950/30 p-3 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-yellow-300">
+              Defense Mode
+            </p>
+            <p className="text-sm text-gray-200">{defensePrompt}</p>
+            <textarea
+              value={defenseResponse}
+              onChange={(e) => setDefenseResponse(e.target.value)}
+              placeholder="Explain your logic in clear steps and include one failure case."
+              className="w-full h-28 bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm text-gray-200 placeholder:text-gray-500 resize-y focus:outline-none focus:border-yellow-500"
+              disabled={isSubmitting}
+            />
+            <button
+              type="button"
+              onClick={submitDefense}
+              disabled={isSubmitting || !defenseResponse.trim()}
+              className="btn-primary disabled:opacity-40"
+            >
+              {isSubmitting ? "Checking Defense..." : "Submit Explanation"}
+            </button>
+          </div>
+        )}
 
         {passed && !result && (
           <p className="text-xs text-green-500">
