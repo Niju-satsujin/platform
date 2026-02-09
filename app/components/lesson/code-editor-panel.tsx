@@ -2,10 +2,12 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
+import type { editor as monacoEditor } from "monaco-editor";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { FileTree } from "./file-tree";
 import { FolderPicker } from "./folder-picker";
 import { guessLanguage, type StarterFiles } from "@/lib/starter-code";
+import { useEditorMode } from "@/lib/use-editor-mode";
 
 /** localStorage key for persisted workspace directory */
 function workspaceStorageKey(lessonId: string) {
@@ -68,6 +70,10 @@ export function CodeEditorPanel({
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const initRef = useRef(false);
+  const { editorMode } = useEditorMode();
+  const vimStatusRef = useRef<HTMLDivElement>(null);
+  const vimModeRef = useRef<{ dispose: () => void } | null>(null);
+  const editorInstanceRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null);
 
   /* ── Open a workspace directory (re-usable) ── */
   const openWorkspace = useCallback(
@@ -294,6 +300,34 @@ export function CodeEditorPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [activeIdx, openFiles, saveFile]);
 
+  /* ── Vim mode attach/detach ── */
+  const attachVim = useCallback(async () => {
+    if (!editorInstanceRef.current || !vimStatusRef.current) return;
+    if (vimModeRef.current) {
+      vimModeRef.current.dispose();
+      vimModeRef.current = null;
+    }
+    if (editorMode === "nvim") {
+      const { initVimMode } = await import("monaco-vim");
+      vimModeRef.current = initVimMode(editorInstanceRef.current, vimStatusRef.current);
+    }
+  }, [editorMode]);
+
+  useEffect(() => {
+    attachVim();
+    return () => {
+      if (vimModeRef.current) {
+        vimModeRef.current.dispose();
+        vimModeRef.current = null;
+      }
+    };
+  }, [attachVim]);
+
+  function handleEditorDidMount(editor: monacoEditor.IStandaloneCodeEditor) {
+    editorInstanceRef.current = editor;
+    attachVim();
+  }
+
   const activeFile = openFiles[activeIdx];
   const currentLang = activeFile ? guessLanguage(activeFile.name) : "plaintext";
 
@@ -417,36 +451,46 @@ export function CodeEditorPanel({
         <Group orientation="vertical" className="flex-1 min-h-0" id="tsp-editor-terminal">
           {/* Editor pane */}
           <Panel defaultSize={60} minSize={20}>
-            <div className="h-full monaco-wrapper">
+            <div className="h-full monaco-wrapper flex flex-col">
               {activeFile ? (
-                <MonacoEditor
-                  height="100%"
-                  language={currentLang}
-                  theme="vs-dark"
-                  value={activeFile.content}
-                  onChange={handleCodeChange}
-                  path={activeFile.path}
-                  options={{
-                    fontSize: 14,
-                    fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-                    minimap: { enabled: false },
-                    lineNumbers: "on",
-                    scrollBeyondLastLine: false,
-                    wordWrap: "on",
-                    padding: { top: 12, bottom: 12 },
-                    renderLineHighlight: "line",
-                    cursorBlinking: "smooth",
-                    smoothScrolling: true,
-                    bracketPairColorization: { enabled: true },
-                    tabSize: 4,
-                    insertSpaces: true,
-                    automaticLayout: true,
-                  }}
-                />
+                <div className="flex-1 min-h-0">
+                  <MonacoEditor
+                    height="100%"
+                    language={currentLang}
+                    theme="vs-dark"
+                    value={activeFile.content}
+                    onChange={handleCodeChange}
+                    onMount={handleEditorDidMount}
+                    path={activeFile.path}
+                    options={{
+                      fontSize: 14,
+                      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+                      minimap: { enabled: false },
+                      lineNumbers: editorMode === "nvim" ? "relative" : "on",
+                      scrollBeyondLastLine: false,
+                      wordWrap: "on",
+                      padding: { top: 12, bottom: 12 },
+                      renderLineHighlight: "line",
+                      cursorBlinking: editorMode === "nvim" ? "solid" : "smooth",
+                      cursorStyle: editorMode === "nvim" ? "block" : "line",
+                      smoothScrolling: true,
+                      bracketPairColorization: { enabled: true },
+                      tabSize: 4,
+                      insertSpaces: true,
+                      automaticLayout: true,
+                    }}
+                  />
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-600 text-sm">
                   Open a file from the tree to start editing
                 </div>
+              )}
+              {editorMode === "nvim" && (
+                <div
+                  ref={vimStatusRef}
+                  className="h-6 px-3 flex items-center text-xs font-mono bg-[#1a1b26] text-[#7aa2f7] border-t border-gray-700 shrink-0"
+                />
               )}
             </div>
           </Panel>

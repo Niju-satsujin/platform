@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, FormEvent, ChangeEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useEditorMode } from "@/lib/use-editor-mode";
 
 interface ProfileData {
   username: string;
@@ -21,6 +22,7 @@ export default function ProfilePage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { editorMode, setEditorMode } = useEditorMode();
 
   useEffect(() => {
     async function loadProfile() {
@@ -244,6 +246,51 @@ export default function ProfilePage() {
                 JPEG, PNG, WebP, or GIF — max 5 MB.
               </p>
             </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-gray-400 mb-1.5 uppercase tracking-wider">
+            Code Editor
+          </label>
+          <p className="text-xs text-gray-500 mb-3">
+            Choose your preferred code editor for lessons and quests.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setEditorMode("vscode")}
+              className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                editorMode === "vscode"
+                  ? "border-yellow-500 bg-yellow-500/5"
+                  : "border-gray-700 bg-gray-800/50 hover:border-gray-600"
+              }`}
+            >
+              <span className="text-2xl">💻</span>
+              <span className={`text-sm font-semibold ${editorMode === "vscode" ? "text-yellow-400" : "text-gray-300"}`}>
+                VS Code
+              </span>
+              <span className="text-[10px] text-gray-500 text-center leading-tight">
+                Standard Monaco editor with IntelliSense
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditorMode("nvim")}
+              className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                editorMode === "nvim"
+                  ? "border-yellow-500 bg-yellow-500/5"
+                  : "border-gray-700 bg-gray-800/50 hover:border-gray-600"
+              }`}
+            >
+              <span className="text-2xl">⌨️</span>
+              <span className={`text-sm font-semibold ${editorMode === "nvim" ? "text-yellow-400" : "text-gray-300"}`}>
+                Neovim (LazyVim)
+              </span>
+              <span className="text-[10px] text-gray-500 text-center leading-tight">
+                Vim keybindings, relative line numbers &amp; block cursor
+              </span>
+            </button>
           </div>
         </div>
 
