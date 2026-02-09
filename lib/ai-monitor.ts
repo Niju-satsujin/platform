@@ -200,49 +200,61 @@ Recent Skills: ${opts.learner.recentSkills.map(s => `${s.skill}(${s.level})`).jo
   return parts.join("\n\n");
 }
 
-/* ─── Call OpenAI ─── */
+/* ─── Call Gemini ─── */
 
 export async function callAIMonitor(
   userMessage: string,
   conversationHistory: { role: "user" | "assistant"; content: string }[] = []
 ): Promise<CoachResponse> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY not configured");
+    throw new Error("GEMINI_API_KEY not configured");
   }
 
-  const messages = [
-    { role: "system" as const, content: SYSTEM_PROMPT },
-    ...conversationHistory.slice(-8), // keep last 8 messages for context
-    { role: "user" as const, content: userMessage },
-  ];
+  // Build Gemini conversation format
+  const contents: { role: string; parts: { text: string }[] }[] = [];
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages,
-      temperature: 0.7,
-      max_tokens: 2000,
-      response_format: { type: "json_object" },
-    }),
-  });
+  // System instruction goes as first "user" turn followed by model ack in Gemini
+  contents.push({ role: "user", parts: [{ text: SYSTEM_PROMPT + "\n\nAcknowledge you understand by responding with a short JSON confirming ready." }] });
+  contents.push({ role: "model", parts: [{ text: '{"coach_mode":"warmup","message":"AI Monitor ready. Send me the learner context.","diagnosis":{"failure_types":[],"confidence":0,"evidence":[]},"next_actions":[],"graduated_hints":[],"flashcards_to_create":[],"skill_updates":[],"log_update":{"session_summary":"","mistakes":"","what_to_do_next_time":""}}' }] });
+
+  // Add conversation history
+  for (const msg of conversationHistory.slice(-8)) {
+    contents.push({
+      role: msg.role === "user" ? "user" : "model",
+      parts: [{ text: msg.content }],
+    });
+  }
+
+  // Add current user message
+  contents.push({ role: "user", parts: [{ text: userMessage }] });
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2048,
+          responseMimeType: "application/json",
+        },
+      }),
+    }
+  );
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`OpenAI API error (${res.status}): ${errText}`);
+    throw new Error(`Gemini API error (${res.status}): ${errText}`);
   }
 
   const data = await res.json();
-  const raw = data.choices?.[0]?.message?.content || "{}";
+  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
   try {
     const parsed = JSON.parse(raw) as CoachResponse;
-    // Ensure all required fields exist with defaults
     return {
       coach_mode: parsed.coach_mode || "work",
       message: parsed.message || "Let me help you with that.",
@@ -258,7 +270,6 @@ export async function callAIMonitor(
       },
     };
   } catch {
-    // If JSON parse fails, wrap the raw text
     return {
       coach_mode: "work",
       message: raw,
