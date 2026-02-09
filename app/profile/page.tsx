@@ -30,6 +30,13 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { editorMode, setEditorMode } = useEditorMode();
 
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMessage, setPwMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   // GitHub settings state
   const [github, setGitHub] = useState<GitHubSettings>({ connected: false, githubUsername: "", githubRepo: "" });
   const [ghToken, setGhToken] = useState("");
@@ -127,6 +134,43 @@ export default function ProfilePage() {
       setGhMessage({ type: "error", text: "Network error — please try again" });
     } finally {
       setGhSaving(false);
+    }
+  }
+
+  async function handlePasswordChange(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPwSaving(true);
+    setPwMessage(null);
+
+    if (newPassword !== confirmNewPassword) {
+      setPwMessage({ type: "error", text: "New passwords do not match" });
+      setPwSaving(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/settings/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setPwMessage({ type: "error", text: data.error || "Failed to change password" });
+        return;
+      }
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setPwMessage({ type: "success", text: "Password updated successfully!" });
+    } catch {
+      setPwMessage({ type: "error", text: "Network error — please try again" });
+    } finally {
+      setPwSaving(false);
     }
   }
 
@@ -425,6 +469,93 @@ export default function ProfilePage() {
           <Link href="/progress" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
             Cancel
           </Link>
+        </div>
+      </form>
+
+      {/* Change Password */}
+      <form onSubmit={handlePasswordChange} className="game-card p-6 mt-6 space-y-5">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0110 0v4" />
+            </svg>
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Change Password
+            </label>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            Update your account password. You&apos;ll need to enter your current password to confirm the change.
+          </p>
+
+          {pwMessage && (
+            <div
+              className={`flex items-center gap-2 p-3 rounded-lg text-sm mb-4 ${
+                pwMessage.type === "success"
+                  ? "bg-green-950/50 border border-green-800/30 text-green-400"
+                  : "bg-red-950/50 border border-red-800/30 text-red-400"
+              }`}
+            >
+              {pwMessage.type === "success" ? "✅" : "❌"} {pwMessage.text}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="currentPassword" className="block text-xs font-semibold text-gray-400 mb-1.5 uppercase tracking-wider">
+                Current Password
+              </label>
+              <input
+                id="currentPassword"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-sm"
+                placeholder="Enter current password"
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="newPassword" className="block text-xs font-semibold text-gray-400 mb-1.5 uppercase tracking-wider">
+                New Password
+              </label>
+              <input
+                id="newPassword"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-sm"
+                placeholder="Enter new password"
+                required
+                minLength={6}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="confirmNewPassword" className="block text-xs font-semibold text-gray-400 mb-1.5 uppercase tracking-wider">
+                Confirm New Password
+              </label>
+              <input
+                id="confirmNewPassword"
+                type="password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-sm"
+                placeholder="Confirm new password"
+                required
+                minLength={6}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={pwSaving || !currentPassword || !newPassword || !confirmNewPassword}
+              className="btn-primary !py-2.5 disabled:opacity-60"
+            >
+              {pwSaving ? "Updating…" : "Update Password"}
+            </button>
+          </div>
         </div>
       </form>
 

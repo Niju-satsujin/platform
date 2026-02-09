@@ -178,6 +178,35 @@ export async function logoutUser() {
   await clearSessionCookie();
 }
 
+// ── Change password ───────────────────────────────────────────────
+export async function changePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !user.passwordHash) {
+    return { error: "User not found" };
+  }
+
+  const valid = await verifyPassword(currentPassword, user.passwordHash);
+  if (!valid) {
+    return { error: "Current password is incorrect" };
+  }
+
+  if (newPassword.length < 6) {
+    return { error: "New password must be at least 6 characters" };
+  }
+
+  const newHash = await hashPassword(newPassword);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: newHash },
+  });
+
+  return { success: true };
+}
+
 // ── Role / rank name based on level (like Boot.dev) ───────────────
 export function getRankName(level: number): string {
   if (level >= 100) return "Archmage";
