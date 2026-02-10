@@ -9,10 +9,12 @@ export const ProofRulesSchema = z.object({
 
 export const LessonFrontmatterSchema = z.object({
   id: z.string().min(1),
-  part: z.string().min(1),
+  part: z.string().optional(),
   title: z.string().min(1),
   order: z.coerce.number().int().min(1),
-  duration_minutes: z.coerce.number().int().min(1).default(10),
+  type: z.string().optional(),
+  duration_minutes: z.coerce.number().int().min(1).optional(),
+  duration_min: z.coerce.number().int().min(1).optional(),
   proof: z
     .object({
       type: z.string().optional(),
@@ -23,22 +25,28 @@ export const LessonFrontmatterSchema = z.object({
     })
     .default({}),
   review_schedule_days: z.array(z.coerce.number().int().positive()).default([1, 3, 7, 14]),
-});
+}).transform((data) => ({
+  ...data,
+  duration_minutes: data.duration_minutes ?? data.duration_min ?? 10,
+}));
 
 export const PartFrontmatterSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   order: z.coerce.number().int().min(1),
+  type: z.string().optional(),
   description: z.string().default(""),
   arc: z.string().optional(),
 });
 
 export const QuestFrontmatterSchema = z.object({
   id: z.string().min(1),
-  part: z.string().min(1),
+  part: z.string().optional(),
   title: z.string().min(1),
   order: z.coerce.number().int().min(1).optional(),
+  type: z.string().optional(),
   duration_minutes: z.coerce.number().int().positive().optional(),
+  duration_min: z.coerce.number().int().positive().optional(),
   proof: z
     .object({
       type: z.string().optional(),
@@ -55,6 +63,7 @@ export const ManifestPartSchema = z.object({
   slug: z.string().min(1),
   title: z.string().min(1),
   order: z.coerce.number().int().min(1),
+  arc: z.string().optional(),
   files: z.object({
     part: z.string().min(1),
     quest: z.string().min(1),
