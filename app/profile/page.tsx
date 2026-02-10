@@ -318,11 +318,7 @@ export default function ProfilePage() {
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
               className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFileUpload(file);
-                e.target.value = "";
-              }}
+              onChange={handleImageUpload}
             />
           </div>
           <div className="min-w-0">
