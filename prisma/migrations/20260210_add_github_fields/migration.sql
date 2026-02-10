@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN "githubUsername" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "User" ADD COLUMN "githubToken" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "User" ADD COLUMN "githubRepo" TEXT NOT NULL DEFAULT '';
