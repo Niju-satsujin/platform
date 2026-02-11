@@ -25,9 +25,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Compute workspace directory from slugs if no explicit dir given
+    // Compute workspace directory from slugs if no explicit dir given.
+    // Week 01 uses the real starter/trustctl project directory.
     if (!dir && partSlug && lessonSlug) {
-      dir = path.join(os.homedir(), ".tsp-workspaces", partSlug, lessonSlug);
+      if (partSlug === "w01") {
+        dir = path.join(process.cwd(), "starter", "trustctl");
+      } else {
+        dir = path.join(os.homedir(), ".tsp-workspaces", partSlug, lessonSlug);
+      }
     }
 
     if (!dir) {

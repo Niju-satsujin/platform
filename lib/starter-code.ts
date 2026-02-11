@@ -6,6 +6,9 @@
  * 2. Plain text: treated as a single file (filename guessed from lesson context)
  */
 
+import fs from "fs";
+import path from "path";
+
 export interface StarterFiles {
   files: Record<string, string>;
   mainFile: string;
@@ -20,6 +23,48 @@ int main() {
     return 0;
 }
 `;
+
+const TRUSTCTL_TEMPLATE_DIR = path.join(process.cwd(), "starter", "trustctl");
+
+function readFilesRecursively(rootDir: string): Record<string, string> {
+  const out: Record<string, string> = {};
+
+  function walk(dir: string) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith(".git")) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const rel = path.relative(rootDir, full).split(path.sep).join("/");
+      out[rel] = fs.readFileSync(full, "utf-8");
+    }
+  }
+
+  walk(rootDir);
+  return out;
+}
+
+function loadTrustctlStarterProject(): StarterFiles | null {
+  if (!fs.existsSync(TRUSTCTL_TEMPLATE_DIR)) {
+    return null;
+  }
+
+  const files = readFilesRecursively(TRUSTCTL_TEMPLATE_DIR);
+  const keys = Object.keys(files);
+  if (keys.length === 0) {
+    return null;
+  }
+
+  return {
+    files,
+    mainFile: files["src/main.cpp"] ? "src/main.cpp" : keys[0],
+    runCommand: "make test",
+  };
+}
 
 /**
  * Guess a reasonable filename from the lesson title.
@@ -81,8 +126,17 @@ export function guessLanguage(filename: string): string {
  */
 export function parseStarterCode(
   raw: string,
-  lessonTitle: string
+  lessonTitle: string,
+  options?: { partSlug?: string }
 ): StarterFiles {
+  // Week 01 is code-first and should always open the full trustctl project.
+  if ((!raw || raw.trim() === "") && options?.partSlug === "w01") {
+    const trustctl = loadTrustctlStarterProject();
+    if (trustctl) {
+      return trustctl;
+    }
+  }
+
   // Empty → generate default C++ starter
   if (!raw || raw.trim() === "") {
     const fileName = "main.cpp";

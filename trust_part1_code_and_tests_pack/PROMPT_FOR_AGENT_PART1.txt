@@ -1,0 +1,49 @@
+SYSTEM / AGENT TASK: Rebuild Part 1 (Week 01) to be code-first with working testers
+
+Context:
+- The course is “Distributed Trust Engineer”.
+- Part 1 (Week 01) is “CLI + Logger Discipline”.
+- The user is building trustctl (like kubectl/etcdctl). It is a persistent tool for the next 6 months (NOT a throwaway script).
+
+Your inputs:
+- This zip contains an updated Part 1 content pack + a starter trustctl project + a 12-test regression harness.
+- Preserve YAML front matter in all markdown files.
+- Keep paths and manifest consistent.
+
+Critical instruction set (must implement in the content + starter project):
+1) Gap filler mandates (Week 01 hard requirements)
+   - Lesson 1: Environment variable override (getenv("TRUST_HOME")) alongside flags. Link 12-factor config.
+   - Lesson 2: Buffer safety: reject any token > 1024 bytes. Mention memory-safety mindset.
+   - Lesson 3: Signal handling: catch SIGINT and exit 130.
+2) Future Lock (in every lesson)
+   - Add a section “Future Lock” explaining which future week uses today’s code (concrete example, not vague).
+3) Concrete harness rule (Lesson 6)
+   - List the exact 12 regression tests (already listed in lesson 6 file). Do not hand-wave.
+4) Practical debugging quiz
+   - Quiz must be scenario-based (already updated in quiz.md). No definition-only questions.
+5) Intro page quality
+   - part.md must explain: what problem trustctl solves, industry analogies (kubectl/etcdctl), and how Week 01 connects to later weeks.
+   - Every major concept must have a markdown link to high-quality resources (man pages, clig.dev, 12factor, etc).
+6) Testing mode / flake prevention
+   - Add global flag --testing to trustctl to make outputs deterministic.
+   - This exists because tests were “not working” due to unstable timestamps/paths/random IDs.
+   - Ensure tests ALWAYS run with --testing.
+
+UI requirement (platform fix):
+- Add a “Testing” option/button on lesson pages that actually runs the project test command (suggested: `make test`) inside the embedded terminal and shows PASS/FAIL output.
+- If a “Testing” option exists but is currently broken, wire it up properly.
+- The lesson content should mention “Run: make test” as the official test entry point.
+
+Deliverables:
+- Updated Part 1 markdown files (already in this zip) should be loaded into the platform.
+- The starter trustctl project and tests folder should be importable into the code editor environment.
+- The Testing UI option must work.
+
+Definition of done:
+- Student can follow lessons 1–6, implement features, and eventually get `make test` to show “12/12 PASS”.
+- The Testing button in UI runs the tests successfully and displays output.
+
+Do not:
+- Do not remove YAML front matter.
+- Do not replace practice with vague reading.
+- Do not hide practice in a separate Training page; practice stays inside each lesson.

@@ -28,7 +28,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Courses", href: "/parts", matchPrefix: "/parts" },
   { label: "Skill Tree", href: "/skill-tree", matchPrefix: "/skill-tree" },
   { label: "Flashcards", href: "/flashcards", matchPrefix: "/flashcards" },
-  { label: "Training", href: "/reviews", matchPrefix: "/reviews" },
+  { label: "Training", href: "/training", matchPrefix: "/training" },
+  { label: "Reviews", href: "/reviews", matchPrefix: "/reviews" },
   { label: "Community", href: "/community", matchPrefix: "/community" },
   { label: "Leaderboard", href: "/leaderboard", matchPrefix: "/leaderboard" },
 ];
@@ -228,7 +229,7 @@ export default function TopHeader({
               </Link>
 
               <Link
-                href="/profile"
+                href="/profile/dashboard"
                 className="h-8 w-8 rounded-full overflow-hidden border border-gray-700 hover:border-yellow-500 transition-colors"
                 title={displayName}
                 suppressHydrationWarning

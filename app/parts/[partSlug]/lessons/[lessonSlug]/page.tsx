@@ -5,6 +5,8 @@ import { hasPassedLesson } from "@/lib/progress";
 import { extractLessonSections } from "@/lib/extract-sections";
 import { parseStarterCode } from "@/lib/starter-code";
 import { getHeroVisual } from "@/lib/visuals";
+import { getPartSupplementalContent } from "@/lib/part-content";
+import { inferLessonKindFromRecord } from "@/lib/content-kind";
 import { LessonHeader } from "@/app/components/lesson/lesson-header";
 import { LessonSplitView } from "@/app/components/lesson/lesson-split-view";
 
@@ -25,16 +27,39 @@ export default async function LessonPage({
 
   if (!lesson) notFound();
 
+  const supplemental = getPartSupplementalContent(partSlug);
+  const currentKind =
+    supplemental?.lessonKindBySlug.get(lesson.slug) ??
+    inferLessonKindFromRecord({
+      title: lesson.title,
+      slug: lesson.slug,
+      contentId: lesson.contentId,
+    });
+  if (currentKind !== "lesson") notFound();
+
   /* ---- Parallel data fetch ---- */
-  const [passed, allLessons, heroVisual] = await Promise.all([
+  const [passed, allLessonsRaw, heroVisual] = await Promise.all([
     hasPassedLesson(lesson.id),
     prisma.lesson.findMany({
       where: { partId: lesson.partId },
       orderBy: { order: "asc" },
-      select: { slug: true, title: true, order: true },
+      select: { slug: true, title: true, order: true, contentId: true },
     }),
     getHeroVisual(lesson.id, lesson.contentId),
   ]);
+
+  const allLessons = allLessonsRaw
+    .filter((item) => {
+      const kind =
+        supplemental?.lessonKindBySlug.get(item.slug) ??
+        inferLessonKindFromRecord({
+          title: item.title,
+          slug: item.slug,
+          contentId: item.contentId,
+        });
+      return kind === "lesson";
+    })
+    .map((item) => ({ slug: item.slug, title: item.title, order: item.order }));
 
   const rules = JSON.parse(lesson.proofRulesJson || lesson.proofRules || "{}");
 
@@ -46,7 +71,9 @@ export default async function LessonPage({
   const contentHtml = rawHtml.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/, "");
 
   /* ---- Starter code ---- */
-  const starter = parseStarterCode(lesson.starterCode, lesson.title);
+  const starter = parseStarterCode(lesson.starterCode, lesson.title, {
+    partSlug,
+  });
 
   /* ---- Navigation ---- */
   const currentIndex = allLessons.findIndex((l) => l.slug === lessonSlug);

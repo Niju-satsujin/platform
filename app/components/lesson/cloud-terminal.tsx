@@ -11,31 +11,43 @@ interface CloudTerminalProps {
   language?: string;
   /** Lesson ID for context */
   lessonId?: string;
+  /** Absolute workspace directory for running make commands */
+  workspaceDir?: string;
+  /** External command to run in terminal (e.g. make test) */
+  externalCommand?: string;
+  /** Tick that triggers running externalCommand */
+  externalCommandNonce?: number;
 }
 
 /**
- * Cloud Terminal — runs entirely in the browser.
+ * Cloud Terminal — browser-based terminal UI.
  *
- * Provides a shell-like experience with:
- * - Basic commands: ls, cat, pwd, cd, echo, clear, help
- * - C++ compilation: g++ / compile / run (routed through /api/execute)
- * - File management: virtual filesystem from editor
- * - Full xterm.js rendering with colors and formatting
+ * - Build/run snippets via /api/execute (Piston)
+ * - Run workspace commands like `make test` via /api/fs/exec
+ * - Supports programmatic command injection (Testing button)
  */
 export default function CloudTerminal({
   getCode,
   getFiles,
   language = "cpp",
+  workspaceDir,
+  externalCommand,
+  externalCommandNonce,
 }: CloudTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const commandRunnerRef = useRef<((cmd: string) => void) | null>(null);
+  const pendingExternalCommandRef = useRef<string | null>(null);
 
   const getCodeRef = useRef(getCode);
   const getFilesRef = useRef(getFiles);
+  const langRef = useRef(language);
+  const workspaceDirRef = useRef(workspaceDir);
+
   getCodeRef.current = getCode;
   getFilesRef.current = getFiles;
-  const langRef = useRef(language);
   langRef.current = language;
+  workspaceDirRef.current = workspaceDir;
 
   const boot = useCallback(async () => {
     if (!containerRef.current) return;
@@ -81,22 +93,30 @@ export default function CloudTerminal({
     terminal.open(containerRef.current);
 
     requestAnimationFrame(() => {
-      try { fitAddon.fit(); } catch { /* not ready */ }
+      try {
+        fitAddon.fit();
+      } catch {
+        /* not ready */
+      }
     });
 
-    // ── Virtual Shell State ──
+    // ── Virtual shell state ──
     let inputBuffer = "";
     const historyList: string[] = [];
     let historyIdx = -1;
     let running = false;
 
-    const CWD = "/workspace";
     const USER = "user";
     const HOST = "cloud";
 
-    // ── Helpers ──
+    function getPromptCwd() {
+      return workspaceDirRef.current || "/workspace";
+    }
+
     function prompt() {
-      terminal.write(`\r\n\x1b[32m${USER}@${HOST}\x1b[0m:\x1b[34m${CWD}\x1b[0m$ `);
+      terminal.write(
+        `\r\n\x1b[32m${USER}@${HOST}\x1b[0m:\x1b[34m${getPromptCwd()}\x1b[0m$ `
+      );
       inputBuffer = "";
     }
 
@@ -106,25 +126,168 @@ export default function CloudTerminal({
 
     function writeColor(text: string, color: string) {
       const codes: Record<string, string> = {
-        red: "31", green: "32", yellow: "33",
-        blue: "34", magenta: "35", cyan: "36",
-        gray: "90", white: "37",
-        boldGreen: "1;32", boldRed: "1;31",
-        boldYellow: "1;33", boldCyan: "1;36",
+        red: "31",
+        green: "32",
+        yellow: "33",
+        blue: "34",
+        magenta: "35",
+        cyan: "36",
+        gray: "90",
+        white: "37",
+        boldGreen: "1;32",
+        boldRed: "1;31",
+        boldYellow: "1;33",
+        boldCyan: "1;36",
       };
       terminal.write(`\x1b[${codes[color] || "0"}m${text}\x1b[0m`);
     }
 
-    // ── Welcome message ──
+    function printStyledOutput(text: string) {
+      if (!text) return;
+      for (const rawLine of text.split("\n")) {
+        const line = rawLine.replace(/\r/g, "");
+        if (!line.trim()) continue;
+        const normalized = line.trimStart();
+        if (normalized.startsWith("PASS")) {
+          writeLn(`  \x1b[32m${line}\x1b[0m`);
+        } else if (normalized.startsWith("FAIL")) {
+          writeLn(`  \x1b[31m${line}\x1b[0m`);
+        } else if (normalized.startsWith("Summary:")) {
+          writeLn(`  \x1b[1;33m${line}\x1b[0m`);
+        } else if (normalized.includes("ALL PASS")) {
+          writeLn(`  \x1b[1;32m${line}\x1b[0m`);
+        } else {
+          writeLn(`  ${line}`);
+        }
+      }
+    }
+
+    async function runLegacyHarnessFromEditorCode() {
+      const code = getCodeRef.current();
+      if (!code.trim()) {
+        writeLn(
+          "\x1b[31m  ✗ No code to compile. Write some code in the editor first.\x1b[0m"
+        );
+        prompt();
+        return;
+      }
+
+      running = true;
+      writeLn("");
+      writeColor("  ⏳ Running 12-test regression harness…\r\n", "yellow");
+      writeLn("\x1b[90m  ─── Test Output ──────────────────\x1b[0m");
+
+      try {
+        const res = await fetch("/api/test-harness", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        });
+        const data = await res.json();
+
+        if (data.phase === "compile") {
+          writeColor("  ✗ Compilation failed — fix build errors first\r\n", "red");
+          printStyledOutput(data.stdout || data.stderr || "");
+        } else {
+          printStyledOutput(data.stdout || "");
+          printStyledOutput(data.stderr || "");
+        }
+
+        writeLn("\x1b[90m  ──────────────────────────────────\x1b[0m");
+        const passedNum = data.passed ?? 0;
+        const totalNum = data.total ?? 12;
+        if (passedNum === totalNum) {
+          writeLn(`\r\n  \x1b[1;32m✓ ${passedNum}/${totalNum} tests passed\x1b[0m`);
+        } else {
+          writeLn(`\r\n  \x1b[1;31m✗ ${passedNum}/${totalNum} tests passed\x1b[0m`);
+        }
+      } catch (err) {
+        writeColor(
+          `  ✗ Network error: ${err instanceof Error ? err.message : "Failed"}\r\n`,
+          "red"
+        );
+      }
+
+      running = false;
+      prompt();
+    }
+
+    async function runWorkspaceCommand(commandLine: string) {
+      const cwd = workspaceDirRef.current;
+      if (!cwd) {
+        writeLn(
+          "\x1b[31m  ✗ No workspace selected. Open a folder first.\x1b[0m"
+        );
+        prompt();
+        return;
+      }
+
+      running = true;
+      writeLn("");
+      writeColor(`  ⏳ ${commandLine} — running in workspace…\r\n`, "yellow");
+      writeLn(`  \x1b[90mcwd: ${cwd}\x1b[0m`);
+      writeLn("\x1b[90m  ─── Command Output ───────────────\x1b[0m");
+
+      try {
+        const res = await fetch("/api/fs/exec", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cwd,
+            command: commandLine,
+            timeoutMs: commandLine === "make test" ? 60000 : 30000,
+          }),
+        });
+        const data = await res.json();
+        const resolvedCwd =
+          typeof data?.cwd === "string" && data.cwd.trim() ? data.cwd : cwd;
+        if (resolvedCwd !== cwd) {
+          writeLn(`  \x1b[90mresolved cwd: ${resolvedCwd}\x1b[0m`);
+        }
+
+        if (!res.ok) {
+          writeColor(`  ✗ ${data.error || "Command failed"}\r\n`, "red");
+          if (data.stdout) printStyledOutput(data.stdout);
+          if (data.stderr) printStyledOutput(data.stderr);
+        } else {
+          if (data.stdout) printStyledOutput(data.stdout);
+          if (data.stderr) printStyledOutput(data.stderr);
+          if (data.timedOut) {
+            writeColor("  ✗ Command timed out\r\n", "red");
+          }
+        }
+
+        writeLn("\x1b[90m  ──────────────────────────────────\x1b[0m");
+        const exitCode = typeof data.exitCode === "number" ? data.exitCode : 1;
+        if (exitCode === 0 && !data.timedOut) {
+          writeLn(`\r\n  \x1b[1;32m✓ ${commandLine} completed (exit 0)\x1b[0m`);
+        } else {
+          writeLn(`\r\n  \x1b[1;31m✗ ${commandLine} failed (exit ${exitCode})\x1b[0m`);
+        }
+      } catch (err) {
+        writeColor(
+          `  ✗ Network error: ${err instanceof Error ? err.message : "Failed"}\r\n`,
+          "red"
+        );
+      }
+
+      running = false;
+      prompt();
+    }
+
     terminal.write("\x1b[1;33m  ⚡ Cloud Terminal\x1b[0m\r\n");
-    terminal.write("\x1b[90m  C++ compilation powered by Piston API\x1b[0m\r\n");
-    terminal.write("\x1b[90m  Type \x1b[36mhelp\x1b[90m for available commands\x1b[0m\r\n");
+    terminal.write("\x1b[90m  Build and test from your lesson workspace\x1b[0m\r\n");
+    terminal.write(
+      "\x1b[90m  Type \x1b[36mhelp\x1b[90m for available commands\x1b[0m\r\n"
+    );
     prompt();
 
-    // ── Command execution ──
     async function executeCommand(cmd: string) {
       const trimmed = cmd.trim();
-      if (!trimmed) { prompt(); return; }
+      if (!trimmed) {
+        prompt();
+        return;
+      }
 
       historyList.push(trimmed);
       historyIdx = historyList.length;
@@ -136,20 +299,25 @@ export default function CloudTerminal({
       switch (command) {
         case "help":
           writeLn("\x1b[1;33m  Available Commands:\x1b[0m");
-          writeLn("  \x1b[36mrun\x1b[0m              Compile and run your code");
-          writeLn("  \x1b[36mrun <stdin>\x1b[0m      Run with input (e.g., run < \"hello\")");
-          writeLn("  \x1b[36mg++\x1b[0m              Alias for run (compiles C++)");
+          writeLn("");
+          writeLn("  \x1b[1;36m── Build & Run ──\x1b[0m");
+          writeLn("  \x1b[36mrun\x1b[0m              Compile and run current code buffer");
           writeLn("  \x1b[36mcompile\x1b[0m          Alias for run");
-          writeLn("  \x1b[36mtest\x1b[0m             Run tests against your code");
-          writeLn("  \x1b[36mls\x1b[0m               List files in editor");
-          writeLn("  \x1b[36mcat <file>\x1b[0m       Show file contents");
-          writeLn("  \x1b[36mpwd\x1b[0m              Print working directory");
+          writeLn("  \x1b[36mg++\x1b[0m              Alias for run");
+          writeLn("");
+          writeLn("  \x1b[1;36m── Testing ──\x1b[0m");
+          writeLn("  \x1b[36mmake test\x1b[0m        Run project regression tests");
+          writeLn("  \x1b[36mtest\x1b[0m             Alias for make test");
+          writeLn("");
+          writeLn("  \x1b[1;36m── Files & Util ──\x1b[0m");
+          writeLn("  \x1b[36mls\x1b[0m               List open editor files");
+          writeLn("  \x1b[36mcat <file>\x1b[0m       Show open file contents");
+          writeLn("  \x1b[36mpwd\x1b[0m              Print terminal workspace path");
           writeLn("  \x1b[36mecho <text>\x1b[0m      Echo text");
           writeLn("  \x1b[36mclear\x1b[0m            Clear terminal");
           writeLn("  \x1b[36mhistory\x1b[0m          Show command history");
-          writeLn("  \x1b[36mhelp\x1b[0m             Show this help");
           writeLn("");
-          writeLn("  \x1b[90mTip: Write code in the editor above, then type 'run'\x1b[0m");
+          writeLn("  \x1b[90mTip: Use the 🧪 Testing button to run make test.\x1b[0m");
           prompt();
           break;
 
@@ -160,7 +328,7 @@ export default function CloudTerminal({
           break;
 
         case "pwd":
-          writeLn(CWD);
+          writeLn(getPromptCwd());
           prompt();
           break;
 
@@ -172,9 +340,12 @@ export default function CloudTerminal({
             for (const f of files) {
               const ext = f.name.split(".").pop() || "";
               const color = ["cpp", "cc", "cxx", "c", "h"].includes(ext)
-                ? "\x1b[36m" : ["py"].includes(ext)
-                ? "\x1b[33m" : ["js", "ts"].includes(ext)
-                ? "\x1b[32m" : "\x1b[37m";
+                ? "\x1b[36m"
+                : ["py"].includes(ext)
+                  ? "\x1b[33m"
+                  : ["js", "ts"].includes(ext)
+                    ? "\x1b[32m"
+                    : "\x1b[37m";
               writeLn(`  ${color}${f.name}\x1b[0m`);
             }
           }
@@ -196,8 +367,7 @@ export default function CloudTerminal({
           if (!file) {
             writeLn(`\x1b[31m  cat: ${target}: No such file\x1b[0m`);
           } else {
-            const lines = file.content.split("\n");
-            for (const line of lines) {
+            for (const line of file.content.split("\n")) {
               writeLn(`  ${line}`);
             }
           }
@@ -212,24 +382,47 @@ export default function CloudTerminal({
 
         case "history":
           for (let i = 0; i < historyList.length; i++) {
-            writeLn(`  \x1b[90m${String(i + 1).padStart(4)}\x1b[0m  ${historyList[i]}`);
+            writeLn(
+              `  \x1b[90m${String(i + 1).padStart(4)}\x1b[0m  ${historyList[i]}`
+            );
           }
           prompt();
           break;
 
+        case "test":
+          if (workspaceDirRef.current) {
+            await runWorkspaceCommand("make test");
+          } else {
+            await runLegacyHarnessFromEditorCode();
+          }
+          break;
+
+        case "make": {
+          if (workspaceDirRef.current) {
+            const makeCommand = args.length > 0 ? `make ${args.join(" ")}` : "make build";
+            await runWorkspaceCommand(makeCommand);
+            break;
+          }
+          if (args[0] === "test") {
+            await runLegacyHarnessFromEditorCode();
+            break;
+          }
+          // No workspace: keep historical behavior and compile current buffer.
+        }
+        // eslint-disable-next-line no-fallthrough
         case "g++":
         case "gcc":
         case "compile":
-        case "run":
-        case "make": {
+        case "run": {
           const code = getCodeRef.current();
           if (!code.trim()) {
-            writeLn("\x1b[31m  ✗ No code to compile. Write some code in the editor first.\x1b[0m");
+            writeLn(
+              "\x1b[31m  ✗ No code to compile. Write some code in the editor first.\x1b[0m"
+            );
             prompt();
             break;
           }
 
-          // Parse stdin from args: run < "some input"  or  run <<< "input"
           let stdin = "";
           const ltIdx = args.indexOf("<");
           const tripleIdx = args.indexOf("<<<");
@@ -263,7 +456,7 @@ export default function CloudTerminal({
               if (data.warnings) {
                 writeColor("  ⚠ Warnings:\r\n", "yellow");
                 for (const line of data.warnings.split("\n")) {
-                  writeLn(`    \x1b[33m${line}\x1b[0m`);
+                  if (line.trim()) writeLn(`    \x1b[33m${line}\x1b[0m`);
                 }
               }
 
@@ -280,40 +473,29 @@ export default function CloudTerminal({
               if (data.stderr) {
                 writeColor("\r\n  stderr:\r\n", "gray");
                 for (const line of data.stderr.split("\n")) {
-                  writeLn(`    \x1b[90m${line}\x1b[0m`);
+                  if (line.trim()) writeLn(`    \x1b[90m${line}\x1b[0m`);
                 }
               }
 
-              writeLn(`\r\n  \x1b[32m✓ Program exited (code ${data.exitCode ?? 0})\x1b[0m`);
+              writeLn(
+                `\r\n  \x1b[32m✓ Program exited (code ${data.exitCode ?? 0})\x1b[0m`
+              );
+            } else if (data.phase === "compile") {
+              writeColor("  ✗ Compilation failed\r\n", "red");
+              for (const line of (data.stderr || data.error || "").split("\n")) {
+                if (line.trim()) writeLn(`    \x1b[31m${line}\x1b[0m`);
+              }
             } else {
-              if (data.phase === "compile") {
-                writeColor("  ✗ Compilation failed\r\n\r\n", "red");
-                if (data.stderr || data.error) {
-                  for (const line of (data.stderr || data.error).split("\n")) {
-                    writeLn(`    \x1b[31m${line}\x1b[0m`);
-                  }
-                }
-              } else {
-                writeColor(`  ✗ Runtime error`, "red");
-                if (data.signal) writeColor(` (signal: ${data.signal})`, "red");
-                writeLn("");
-                if (data.stdout) {
-                  writeLn("\x1b[90m  ─── Output before error ──────────\x1b[0m");
-                  for (const line of data.stdout.split("\n")) {
-                    writeLn(`  ${line}`);
-                  }
-                }
-                if (data.stderr || data.error) {
-                  writeLn("");
-                  for (const line of (data.stderr || data.error).split("\n")) {
-                    writeLn(`    \x1b[31m${line}\x1b[0m`);
-                  }
-                }
+              writeColor("  ✗ Runtime error\r\n", "red");
+              for (const line of (data.stderr || data.error || "").split("\n")) {
+                if (line.trim()) writeLn(`    \x1b[31m${line}\x1b[0m`);
               }
             }
           } catch (err) {
-            writeColor(`  ✗ Network error: ${err instanceof Error ? err.message : "Failed to connect"}\r\n`, "red");
-            writeLn("  \x1b[90mCheck your internet connection and try again.\x1b[0m");
+            writeColor(
+              `  ✗ Network error: ${err instanceof Error ? err.message : "Failed to connect"}\r\n`,
+              "red"
+            );
           }
 
           running = false;
@@ -323,62 +505,82 @@ export default function CloudTerminal({
 
         default:
           writeLn(`\x1b[31m  ${command}: command not found\x1b[0m`);
-          writeLn(`\x1b[90m  Type 'help' for available commands\x1b[0m`);
+          writeLn("\x1b[90m  Type 'help' for available commands\x1b[0m");
           prompt();
           break;
       }
     }
 
-    // ── Handle keyboard input ──
+    commandRunnerRef.current = (cmd: string) => {
+      void executeCommand(cmd);
+    };
+
+    if (pendingExternalCommandRef.current) {
+      const queued = pendingExternalCommandRef.current;
+      pendingExternalCommandRef.current = null;
+      commandRunnerRef.current(queued);
+    }
+
     terminal.onData((data: string) => {
-      if (running) return; // Ignore input while running
+      if (running) return;
 
       const code = data.charCodeAt(0);
 
       if (data === "\r" || data === "\n") {
-        // Enter
         const cmd = inputBuffer;
         inputBuffer = "";
-        executeCommand(cmd);
+        void executeCommand(cmd);
       } else if (data === "\x7f" || data === "\b") {
-        // Backspace
         if (inputBuffer.length > 0) {
           inputBuffer = inputBuffer.slice(0, -1);
           terminal.write("\b \b");
         }
       } else if (data === "\x1b[A") {
-        // Up arrow — history
         if (historyIdx > 0) {
           historyIdx--;
-          // Clear current line
-          terminal.write(`\r\x1b[K\x1b[32m${USER}@${HOST}\x1b[0m:\x1b[34m${CWD}\x1b[0m$ `);
+          terminal.write(
+            `\r\x1b[K\x1b[32m${USER}@${HOST}\x1b[0m:\x1b[34m${getPromptCwd()}\x1b[0m$ `
+          );
           inputBuffer = historyList[historyIdx] || "";
           terminal.write(inputBuffer);
         }
       } else if (data === "\x1b[B") {
-        // Down arrow — history
         if (historyIdx < historyList.length - 1) {
           historyIdx++;
-          terminal.write(`\r\x1b[K\x1b[32m${USER}@${HOST}\x1b[0m:\x1b[34m${CWD}\x1b[0m$ `);
+          terminal.write(
+            `\r\x1b[K\x1b[32m${USER}@${HOST}\x1b[0m:\x1b[34m${getPromptCwd()}\x1b[0m$ `
+          );
           inputBuffer = historyList[historyIdx] || "";
           terminal.write(inputBuffer);
         } else {
           historyIdx = historyList.length;
-          terminal.write(`\r\x1b[K\x1b[32m${USER}@${HOST}\x1b[0m:\x1b[34m${CWD}\x1b[0m$ `);
+          terminal.write(
+            `\r\x1b[K\x1b[32m${USER}@${HOST}\x1b[0m:\x1b[34m${getPromptCwd()}\x1b[0m$ `
+          );
           inputBuffer = "";
         }
       } else if (data === "\x03") {
-        // Ctrl+C
         writeColor("^C", "red");
         prompt();
       } else if (data === "\x0c") {
-        // Ctrl+L (clear)
         terminal.clear();
         terminal.write("\x1b[H\x1b[2J");
         prompt();
       } else if (data === "\t") {
-        // Tab — autocomplete commands
-        const commands = ["run", "compile", "g++", "ls", "cat", "pwd", "echo", "clear", "help", "history", "test"];
+        const commands = [
+          "run",
+          "compile",
+          "g++",
+          "make",
+          "test",
+          "ls",
+          "cat",
+          "pwd",
+          "echo",
+          "clear",
+          "help",
+          "history",
+        ];
         const matches = commands.filter((c) => c.startsWith(inputBuffer));
         if (matches.length === 1) {
           const rest = matches[0].slice(inputBuffer.length);
@@ -386,25 +588,30 @@ export default function CloudTerminal({
           terminal.write(rest);
         } else if (matches.length > 1) {
           writeLn(`  ${matches.join("  ")}`);
-          terminal.write(`\x1b[32m${USER}@${HOST}\x1b[0m:\x1b[34m${CWD}\x1b[0m$ ${inputBuffer}`);
+          terminal.write(
+            `\x1b[32m${USER}@${HOST}\x1b[0m:\x1b[34m${getPromptCwd()}\x1b[0m$ ${inputBuffer}`
+          );
         }
       } else if (code >= 32) {
-        // Printable character
         inputBuffer += data;
         terminal.write(data);
       }
     });
 
-    // ── Auto-fit on resize ──
     const observer = new ResizeObserver(() => {
       requestAnimationFrame(() => {
-        try { fitAddon.fit(); } catch { /* not ready */ }
+        try {
+          fitAddon.fit();
+        } catch {
+          /* not ready */
+        }
       });
     });
     observer.observe(containerRef.current);
 
     cleanupRef.current = () => {
       observer.disconnect();
+      commandRunnerRef.current = null;
       terminal.dispose();
     };
   }, []);
@@ -426,6 +633,18 @@ export default function CloudTerminal({
     };
   }, [boot]);
 
+  useEffect(() => {
+    if (externalCommandNonce === undefined) return;
+    const cmd = (externalCommand || "").trim();
+    if (!cmd) return;
+
+    if (commandRunnerRef.current) {
+      commandRunnerRef.current(cmd);
+      return;
+    }
+    pendingExternalCommandRef.current = cmd;
+  }, [externalCommand, externalCommandNonce]);
+
   return (
     <div className="flex flex-col h-full bg-[#0a0a0f] overflow-hidden">
       <div className="flex items-center justify-between px-3 py-1 bg-gray-900 border-b border-gray-700 shrink-0">
@@ -433,7 +652,7 @@ export default function CloudTerminal({
           <span className="w-2 h-2 rounded-full bg-green-500" />
           <span className="text-xs font-semibold text-gray-400">Cloud Terminal</span>
         </div>
-        <span className="text-[10px] text-gray-600 font-mono">piston • c++</span>
+        <span className="text-[10px] text-gray-600 font-mono">workspace mode</span>
       </div>
       <div ref={containerRef} className="flex-1 min-h-0 p-1" />
     </div>

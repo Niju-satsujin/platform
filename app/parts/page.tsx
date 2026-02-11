@@ -1,16 +1,93 @@
 import Link from "next/link";
 import Image from "next/image";
 import { prisma } from "@/lib/db";
-import { getPartProgress } from "@/lib/progress";
+import { getCurrentUser } from "@/lib/auth";
+import { getPartSupplementalContent } from "@/lib/part-content";
+import { inferLessonKindFromRecord } from "@/lib/content-kind";
 
 export default async function PartsPage() {
+  const user = await getCurrentUser();
+
   const parts = await prisma.part.findMany({
     orderBy: { order: "asc" },
     include: {
-      lessons: { orderBy: { order: "asc" }, select: { id: true } },
+      lessons: {
+        orderBy: { order: "asc" },
+        select: { id: true, slug: true, title: true, contentId: true },
+      },
       quest: true,
     },
   });
+
+  /* ── Fetch all progress in one query instead of 24 separate ones ── */
+  const progressRows = user
+    ? await prisma.userProgress.findMany({ where: { userId: user.id } })
+    : [];
+
+  // Derive completion directly from passed submissions as a resilient source of truth.
+  const passedSubmissions = user
+    ? await prisma.submission.findMany({
+        where: { userId: user.id, status: "passed" },
+        select: {
+          lessonId: true,
+          questId: true,
+          lesson: { select: { partId: true } },
+          quest: { select: { partId: true } },
+        },
+      })
+    : [];
+
+  const lessonSetByPart = new Map<string, Set<string>>();
+  const questPartSet = new Set<string>();
+  for (const sub of passedSubmissions) {
+    if (sub.lessonId && sub.lesson?.partId) {
+      const existing = lessonSetByPart.get(sub.lesson.partId) ?? new Set<string>();
+      existing.add(sub.lessonId);
+      lessonSetByPart.set(sub.lesson.partId, existing);
+    }
+    if (sub.questId && sub.quest?.partId) {
+      questPartSet.add(sub.quest.partId);
+    }
+  }
+
+  const progressMap = new Map(progressRows.map((r) => [r.partId, r]));
+
+  const rawStatuses = parts.map((part) => {
+    const supplemental = getPartSupplementalContent(part.slug);
+    const coreLessonIds = new Set(
+      part.lessons
+        .filter((lesson) => {
+          const kind =
+            supplemental?.lessonKindBySlug.get(lesson.slug) ??
+            inferLessonKindFromRecord({
+              title: lesson.title,
+              slug: lesson.slug,
+              contentId: lesson.contentId,
+            });
+          return kind === "lesson";
+        })
+        .map((lesson) => lesson.id)
+    );
+
+    const p = progressMap.get(part.id);
+    const doneFromProgress = p?.completedLessons ?? 0;
+    const doneFromSubsRaw = lessonSetByPart.get(part.id) ?? new Set<string>();
+    const doneFromSubs = Array.from(doneFromSubsRaw).filter((id) => coreLessonIds.has(id)).length;
+    const total = coreLessonIds.size;
+    const done = Math.min(total, Math.max(doneFromProgress, doneFromSubs));
+    const questDone = (p?.questCompleted ?? false) || questPartSet.has(part.id);
+    const isComplete = total > 0 && done >= total && questDone;
+    return { done, total, questDone, isComplete };
+  });
+
+  /* The first non-complete part is "current" (in-progress).
+     Everything before it is complete, everything after is locked. */
+  const firstIncompleteIdx = rawStatuses.findIndex((s) => !s.isComplete);
+  const statuses = rawStatuses.map((s, i) => ({
+    ...s,
+    isInProgress: i === firstIncompleteIdx,
+    isLocked: i > firstIncompleteIdx && firstIncompleteIdx !== -1,
+  }));
 
   return (
     <div className="px-6 py-6 max-w-6xl mx-auto animate-float-up">
@@ -27,20 +104,33 @@ export default async function PartsPage() {
 
       {/* Track */}
       <div className="relative">
-        {/* Vertical connector */}
-        <div className="track-line" />
+        {/* ── Single continuous track line ── */}
+        {(() => {
+          const n = parts.length;
+          if (n < 2) return null;
+          const stops: string[] = [];
+          for (let idx = 0; idx < n; idx++) {
+            const s = statuses[idx];
+            const color = s.isComplete ? '#9ece6a' : s.isInProgress ? '#e0af68' : '#232838';
+            const pos = (idx / (n - 1)) * 100;
+            stops.push(`${color} ${pos.toFixed(1)}%`);
+          }
+          return (
+            <div
+              className="absolute left-[23px] w-[3px] rounded-full z-0"
+              style={{
+                top: '35px',
+                bottom: '35px',
+                background: `linear-gradient(to bottom, ${stops.join(', ')})`,
+              }}
+            />
+          );
+        })()}
 
         <div className="flex flex-col gap-5">
-          {parts.map(async (part, i) => {
-            const partProgress = await getPartProgress(part.id);
-            const completedLessons = partProgress?.completedLessons ?? 0;
-            const totalLessons = part.lessons.length;
-            const questDone = partProgress?.questCompleted ?? false;
+          {parts.map((part, i) => {
+            const { done: completedLessons, total: totalLessons, isComplete, isInProgress, isLocked } = statuses[i];
             const pct = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
-
-            const isComplete = completedLessons === totalLessons && questDone;
-            const isInProgress = completedLessons > 0 && !isComplete;
-            const isLocked = i > 0 && !isInProgress && !isComplete;
 
             const iconSrc = "/img/c-128.png";
 
@@ -50,13 +140,14 @@ export default async function PartsPage() {
                 href={`/parts/${part.slug}`}
                 className="relative pl-14 group"
               >
+
                 {/* Node circle on the track */}
                 <div className={`absolute left-[10px] top-5 w-[30px] h-[30px] rounded-full flex items-center justify-center text-sm z-10 border-2 transition-all ${
                   isComplete
-                    ? "bg-green-950 border-green-800 text-green-500"
+                    ? "bg-green-950 border-green-500 text-green-400 shadow-[0_0_12px_rgba(74,222,128,0.3)]"
                     : isInProgress
-                    ? "bg-yellow-950 border-yellow-500 text-yellow-500 animate-throb"
-                    : "bg-gray-850 border-gray-700 text-gray-500"
+                    ? "bg-yellow-950 border-yellow-500 text-yellow-400 animate-throb shadow-[0_0_12px_rgba(234,179,8,0.25)]"
+                    : "bg-gray-850 border-gray-600 text-gray-500"
                 }`}>
                   {isComplete ? (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -74,7 +165,13 @@ export default async function PartsPage() {
                 </div>
 
                 {/* Course card */}
-                <div className={`game-card p-5 ${isComplete ? "border-green-800/30" : isInProgress ? "border-yellow-500/30 game-card-active" : ""}`}>
+                <div className={`game-card p-5 ${
+                  isComplete
+                    ? "border-green-500/30"
+                    : isInProgress
+                    ? "border-yellow-500/30 game-card-active"
+                    : ""
+                }`}>
                   <div className="flex items-start gap-4">
                     {/* Icon */}
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
@@ -86,12 +183,18 @@ export default async function PartsPage() {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-[11px] text-gray-500 uppercase tracking-widest font-semibold">
-                          Part {part.order} • {totalLessons} Lessons
+                        <span className={`text-[11px] uppercase tracking-widest font-semibold ${
+                          isComplete
+                            ? "text-green-400"
+                            : isInProgress
+                            ? "text-yellow-400"
+                            : "text-gray-300"
+                        }`}>
+                          Part {part.order} · {totalLessons} Lessons
                         </span>
                         {isComplete && <span className="badge badge-success">Complete</span>}
                         {isInProgress && <span className="badge badge-yellow">In Progress</span>}
-                        {isLocked && <span className="badge" style={{ background: "rgba(90,90,122,0.15)", color: "var(--gray-500)" }}>Locked</span>}
+                        {isLocked && <span className="badge badge-danger">Locked</span>}
                       </div>
                       <h2 className="text-base font-semibold text-gray-100 group-hover:text-yellow-500 transition-colors mb-1">
                         {part.title}
@@ -106,7 +209,9 @@ export default async function PartsPage() {
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                        <span className="text-xs font-semibold text-gray-400 whitespace-nowrap">
+                        <span className={`text-xs font-semibold whitespace-nowrap ${
+                          isComplete ? "text-green-400" : isInProgress ? "text-yellow-400" : "text-gray-400"
+                        }`}>
                           {completedLessons}/{totalLessons}
                         </span>
                       </div>

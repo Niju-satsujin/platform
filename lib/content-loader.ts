@@ -3,6 +3,7 @@ import path from "path";
 import matter from "gray-matter";
 import {
   ContentManifestSchema,
+  type ContentKind,
   LessonFrontmatterSchema,
   ManifestPartSchema,
   PartFrontmatterSchema,
@@ -22,6 +23,7 @@ export interface ParsedLesson {
   frontmatter: LessonFrontmatter;
   content: string;
   proofRules: ProofRules;
+  kind: ContentKind;
 }
 
 export interface ParsedQuest {
@@ -29,6 +31,7 @@ export interface ParsedQuest {
   frontmatter: QuestFrontmatter;
   content: string;
   proofRules: ProofRules;
+  kind: ContentKind;
 }
 
 export interface ParsedPart {
@@ -105,6 +108,7 @@ export function getAllParts(): ParsedPart[] {
           frontmatter,
           content: lessonDoc.content,
           proofRules,
+          kind: frontmatter.kind,
         };
       });
 
@@ -123,6 +127,7 @@ export function getAllParts(): ParsedPart[] {
           frontmatter: questFrontmatter,
           content: questDoc.content,
           proofRules: questProofRules,
+          kind: questFrontmatter.kind,
         },
       } satisfies ParsedPart;
     })

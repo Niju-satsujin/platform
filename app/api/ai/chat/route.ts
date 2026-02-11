@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { extractLessonSections } from "@/lib/extract-sections";
+import { calculateSkillLevel } from "@/lib/skill-tree";
 import {
   callAIMonitor,
   buildUserMessage,
@@ -177,11 +178,40 @@ async function updateSkills(
         where: { userId_skillId: { userId, skillId: skill.id } },
       });
 
+      const repDelta = Math.max(0, upd.delta);
+
+      let userSkill;
       if (existing) {
-        await prisma.userSkill.update({
+        userSkill = await prisma.userSkill.update({
           where: { id: existing.id },
           data: {
-            timesUsedValidated: existing.timesUsedValidated + Math.max(0, upd.delta),
+            timesUsedValidated: existing.timesUsedValidated + repDelta,
+            updatedAt: new Date(),
+          },
+        });
+      } else {
+        userSkill = await prisma.userSkill.create({
+          data: {
+            userId,
+            skillId: skill.id,
+            level: "unlocked",
+            timesUsedValidated: repDelta,
+            distinctContexts: 0,
+          },
+        });
+      }
+
+      const nextLevel = calculateSkillLevel(
+        userSkill.timesUsedValidated,
+        userSkill.distinctContexts,
+        userSkill.lastReviewPassedAt
+      );
+
+      if (nextLevel !== userSkill.level) {
+        await prisma.userSkill.update({
+          where: { id: userSkill.id },
+          data: {
+            level: nextLevel,
             updatedAt: new Date(),
           },
         });

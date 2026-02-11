@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 
 interface EditorToolbarProps {
   /** Current code in editor */
@@ -32,6 +33,7 @@ export function EditorToolbar({
   passed,
   onReset,
 }: EditorToolbarProps) {
+  const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [showRunCmd, setShowRunCmd] = useState(false);
   const [showProof, setShowProof] = useState(false);
@@ -132,6 +134,7 @@ export function EditorToolbar({
           setDefenseSubmissionId(null);
           setDefensePrompt("");
           setDefenseResponse("");
+          router.refresh();
         } else {
           setDefenseSubmissionId(null);
         }
@@ -144,7 +147,7 @@ export function EditorToolbar({
     } finally {
       setSubmitting(false);
     }
-  }, [proofText, lessonId, partSlug, lessonSlug, mode, code]);
+  }, [proofText, lessonId, partSlug, lessonSlug, mode, code, router]);
 
   const submitDefense = useCallback(async () => {
     if (!defenseSubmissionId || !defenseResponse.trim()) return;
@@ -184,6 +187,7 @@ export function EditorToolbar({
           setDefenseSubmissionId(null);
           setDefensePrompt("");
           setDefenseResponse("");
+          router.refresh();
         } else if (data.status === "pending") {
           setDefensePrompt(data.message || defensePrompt);
         } else {
@@ -198,7 +202,7 @@ export function EditorToolbar({
     } finally {
       setSubmitting(false);
     }
-  }, [defenseSubmissionId, defenseResponse, mode, lessonId, partSlug, lessonSlug, code, defensePrompt]);
+  }, [defenseSubmissionId, defenseResponse, mode, lessonId, partSlug, lessonSlug, code, defensePrompt, router]);
 
   return (
     <div className="border-t border-gray-700 bg-gray-900 shrink-0">

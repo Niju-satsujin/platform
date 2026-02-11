@@ -3,6 +3,7 @@ import { getReviewSchedule, parseReviewScheduleDays } from "@/lib/schedule-revie
 import { validateProof } from "@/lib/validate-proof";
 import { logProgressEvent } from "@/lib/progress-events";
 import { syncProgressToGitHub } from "@/lib/github-sync";
+import { recordLessonSkillEvidence, recordQuestSkillEvidence } from "@/lib/skill-evidence";
 import {
   buildTutorMessage,
   callAITutor,
@@ -29,6 +30,7 @@ interface SubmitProofResult {
   status: SubmissionStatus;
   message: string;
   submissionId: string;
+  xpAwarded?: number;
   defenseVerdict?: DefenseVerdict;
   coachMode?: string;
   nextActions?: string[];
@@ -185,12 +187,12 @@ async function updateStreak(userId: string) {
   });
 }
 
-async function handleLessonPass(userId: string, lessonId: string, submissionId: string) {
+async function handleLessonPass(userId: string, lessonId: string, submissionId: string): Promise<number> {
   const lesson = await prisma.lesson.findUnique({
     where: { id: lessonId },
     include: { part: true },
   });
-  if (!lesson) return;
+  if (!lesson) return 0;
 
   const alreadyPassed = await prisma.submission.count({
     where: {
@@ -203,6 +205,7 @@ async function handleLessonPass(userId: string, lessonId: string, submissionId: 
 
   const isFirstPass = alreadyPassed === 0;
   const xpReward = lesson.xpReward ?? 100;
+  const awardedXp = isFirstPass ? xpReward : 0;
 
   if (isFirstPass) {
     await prisma.submission.update({
@@ -259,11 +262,19 @@ async function handleLessonPass(userId: string, lessonId: string, submissionId: 
     lessonTitle: lesson.title,
     partSlug: lesson.part.slug,
     status: "passed",
-    xpAwarded: isFirstPass ? (lesson.xpReward ?? 100) : 0,
+    xpAwarded: awardedXp,
   });
 
   // Sync to GitHub repo (fire-and-forget, never blocks completion)
   if (isFirstPass) {
+    await recordLessonSkillEvidence({
+      userId,
+      partSlug: lesson.part.slug,
+      lessonSlug: lesson.slug,
+      lessonOrder: lesson.order,
+      artifactPath: `submission:${submissionId}`,
+    });
+
     syncProgressToGitHub({
       userId,
       type: "lesson",
@@ -272,11 +283,13 @@ async function handleLessonPass(userId: string, lessonId: string, submissionId: 
       xpAwarded: lesson.xpReward ?? 100,
     }).catch((err) => console.error("GitHub sync (lesson) failed:", err));
   }
+
+  return awardedXp;
 }
 
-async function handleQuestPass(userId: string, questId: string, submissionId: string) {
+async function handleQuestPass(userId: string, questId: string, submissionId: string): Promise<number> {
   const quest = await prisma.quest.findUnique({ where: { id: questId } });
-  if (!quest) return;
+  if (!quest) return 0;
 
   const alreadyPassed = await prisma.submission.count({
     where: {
@@ -289,6 +302,7 @@ async function handleQuestPass(userId: string, questId: string, submissionId: st
 
   const isFirstPass = alreadyPassed === 0;
   const xpReward = quest.xpReward ?? 250;
+  const awardedXp = isFirstPass ? xpReward : 0;
 
   if (isFirstPass) {
     await prisma.submission.update({
@@ -311,11 +325,25 @@ async function handleQuestPass(userId: string, questId: string, submissionId: st
     questTitle: quest.title,
     partSlug: quest.partId,
     status: "passed",
-    xpAwarded: isFirstPass ? (quest.xpReward ?? 250) : 0,
+    xpAwarded: awardedXp,
   });
 
   // Sync to GitHub repo (fire-and-forget, never blocks completion)
   if (isFirstPass) {
+    const questWithPart = await prisma.quest.findUnique({
+      where: { id: questId },
+      include: { part: true },
+    });
+
+    if (questWithPart) {
+      await recordQuestSkillEvidence({
+        userId,
+        partSlug: questWithPart.part.slug,
+        questSlug: questWithPart.slug,
+        artifactPath: `submission:${submissionId}`,
+      });
+    }
+
     syncProgressToGitHub({
       userId,
       type: "quest",
@@ -324,6 +352,8 @@ async function handleQuestPass(userId: string, questId: string, submissionId: st
       xpAwarded: quest.xpReward ?? 250,
     }).catch((err) => console.error("GitHub sync (quest) failed:", err));
   }
+
+  return awardedXp;
 }
 
 async function createTutorFlashcards(params: {
@@ -498,12 +528,13 @@ async function continueDefenseSubmission(input: SubmitProofInput): Promise<Submi
     },
   });
 
+  let xpAwarded = 0;
   if (verdict === "passed") {
     if (submission.lessonId) {
-      await handleLessonPass(input.userId, submission.lessonId, submission.id);
+      xpAwarded += await handleLessonPass(input.userId, submission.lessonId, submission.id);
     }
     if (submission.questId) {
-      await handleQuestPass(input.userId, submission.questId, submission.id);
+      xpAwarded += await handleQuestPass(input.userId, submission.questId, submission.id);
     }
   } else {
     await logProgressEvent(input.userId, "proof_submitted", {
@@ -527,6 +558,7 @@ async function continueDefenseSubmission(input: SubmitProofInput): Promise<Submi
     status: verdict,
     message: evaluation.message,
     submissionId: submission.id,
+    xpAwarded,
     defenseVerdict: evaluation.defense_verdict,
     coachMode: evaluation.coach_mode,
     nextActions: evaluation.next_actions || [],
@@ -585,6 +617,7 @@ export async function submitProof(input: SubmitProofInput): Promise<SubmitProofR
         status: "failed",
         message: autoResult.message,
         submissionId: submission.id,
+        xpAwarded: 0,
         defenseVerdict: "fail",
       };
     }
@@ -625,6 +658,7 @@ export async function submitProof(input: SubmitProofInput): Promise<SubmitProofR
       status: "pending",
       message: challenge.message,
       submissionId: submission.id,
+      xpAwarded: 0,
       defenseVerdict: "pending",
       coachMode: challenge.coach_mode,
       nextActions: challenge.next_actions || [],
@@ -665,6 +699,7 @@ export async function submitProof(input: SubmitProofInput): Promise<SubmitProofR
       status: "failed",
       message: autoResult.message,
       submissionId: submission.id,
+      xpAwarded: 0,
       defenseVerdict: "fail",
     };
   }
@@ -705,6 +740,7 @@ export async function submitProof(input: SubmitProofInput): Promise<SubmitProofR
     status: "pending",
     message: challenge.message,
     submissionId: submission.id,
+    xpAwarded: 0,
     defenseVerdict: "pending",
     coachMode: challenge.coach_mode,
     nextActions: challenge.next_actions || [],

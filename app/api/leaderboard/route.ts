@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCurrentUser, getUserBySessionToken } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const token = url.searchParams.get("t");
+
+  let user = await getCurrentUser();
+  if (!user && token) user = await getUserBySessionToken(token);
+
   try {
     const users = await prisma.user.findMany({
       where: {
@@ -23,7 +30,7 @@ export async function GET() {
       take: 100,
     });
 
-    return NextResponse.json({ users });
+    return NextResponse.json({ users, currentUserId: user?.id ?? null });
   } catch (error) {
     console.error("Leaderboard error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

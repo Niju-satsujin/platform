@@ -396,3 +396,582 @@
   - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
 - Next step:
   - Execute full runtime validation in a Node-enabled environment and complete final QA walkthrough.
+
+## Entry — Test Account Part 1 Completion
+- UTC timestamp: 2026-02-10T17:54:12Z
+- What changed:
+  - Updated database state so test account shows Part 1 as complete on courses flow.
+  - Ensured `UserProgress` for `w01-cli-logger-discipline` has full lesson count and `questCompleted = true`.
+  - Seeded passed submissions for all Part 1 lessons + Part 1 quest for test user to keep part-detail status consistent.
+- Files created/modified:
+  - `prisma/dev.db` (data only)
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `sqlite3 prisma/dev.db "... upsert/update UserProgress for username='test' ..."`
+  - `sqlite3 prisma/dev.db "... insert passed Submission rows for Part 1 lessons/quest ..."`
+  - `sqlite3 prisma/dev.db "SELECT ... verify passed lessons/quest ..."`
+  - `sqlite3 prisma/dev.db "SELECT ... verify UserProgress ..."`
+- Next step:
+  - Refresh Courses page while logged into `test` account to confirm Part 1 badge/progress displays complete.
+
+## Entry — Course Completion Consistency Fix
+- UTC timestamp: 2026-02-10T17:58:01Z
+- What changed:
+  - Updated courses page completion logic to derive progress from passed submissions as well as `UserProgress`.
+  - Updated part detail header completion logic to derive completed lesson count and quest status from passed submissions for the current user.
+  - This prevents stale `UserProgress` rows from incorrectly showing Part 1 as "In Progress" when submissions are already passed.
+- Files created/modified:
+  - `app/parts/page.tsx`
+  - `app/parts/[partSlug]/page.tsx`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `sqlite3 prisma/dev.db "SELECT ..."` verification queries for users/parts/progress
+  - file edits via patch tool
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Refresh `/parts` while logged in to `test`; Part 1 should render as complete.
+
+## Entry — Active DB Correction for Test Account
+- UTC timestamp: 2026-02-10T18:02:36Z
+- What changed:
+  - Identified root cause: app runtime uses `prisma/prisma/dev.db`, while earlier manual updates were applied to `prisma/dev.db`.
+  - Updated active runtime DB to set Part 1 (`w01`) complete for `test` user:
+    - `UserProgress.completedLessons = total lessons (6)`
+    - `UserProgress.questCompleted = 1`
+    - ensured passed submissions exist for all 6 lessons and Part 1 quest.
+  - Verified live auth/session and rendered `/parts` output using active token now shows Part 1 as `Complete` and Part 2 as `In Progress`.
+- Files created/modified:
+  - `prisma/prisma/dev.db` (data only)
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `sqlite3 prisma/prisma/dev.db "SELECT ..."` (users, parts, progress)
+  - `sqlite3 prisma/prisma/dev.db "BEGIN; ... INSERT/UPDATE ... COMMIT;"`
+  - `curl http://localhost:3000/api/auth/me?t=<token>`
+  - `curl http://localhost:3000/parts?t=<token>`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - User refreshes Courses page in active test session; if still stale, clear local token and log in again.
+
+## Entry — XP Refresh + Skill Evidence Pipeline Fix
+- UTC timestamp: 2026-02-10T18:12:32Z
+- What changed:
+  - Added `xpAwarded` to submission result payloads and surfaced it in lesson/quest submission APIs.
+  - Added immediate UI refresh on pass (`router.refresh()`) across lesson submission components so header XP/level updates without manual reload.
+  - Implemented automatic skill evidence recording on first lesson/quest pass:
+    - week-based skill pool mapping from part slug
+    - `UserSkill` upsert/update
+    - `SkillContext` dedupe by `(userId, skillId, projectId, scenarioTag)`
+    - `SkillAttempt` logging
+    - level recalculation + `skill_up` progress event when level changes
+  - Fixed AI monitor skill updates so first-time skill updates create `UserSkill` rows instead of being silently skipped.
+- Files created/modified:
+  - `lib/skill-evidence.ts` (new)
+  - `lib/submissions.ts`
+  - `app/api/submissions/lesson/route.ts`
+  - `app/api/submissions/quest/route.ts`
+  - `app/api/ai/chat/route.ts`
+  - `app/lesson/[partSlug]/[lessonSlug]/submission-form.tsx`
+  - `app/components/lesson/proof-box.tsx`
+  - `app/components/lesson/editor-toolbar.tsx`
+  - `app/components/lesson/terminal-panel.tsx`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `rg -n ...` code trace commands for xp/skill paths
+  - `sed -n ...` file inspections for submission + skill-tree code
+  - `apply_patch` edits listed above
+- Next step:
+  - Reconcile test user XP in active DB from passed submissions and verify skill rows are created after a fresh pass.
+
+## Entry — Test Account XP Reconcile + Skills E2E Verification
+- UTC timestamp: 2026-02-10T18:14:15Z
+- What changed:
+  - Reconciled `test` user XP in active runtime DB (`prisma/prisma/dev.db`) from passed lesson/quest submissions.
+  - Ensured first passed submission per lesson/quest carries reward XP and recomputed user `xp` + `level`.
+  - Executed an end-to-end lesson submission through Defense Mode to verify:
+    - pass returns `xpAwarded`
+    - user XP increments correctly
+    - skill evidence is now written automatically (`UserSkill` + `SkillAttempt` + context).
+- Files created/modified:
+  - `prisma/prisma/dev.db` (data only)
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `sqlite3 prisma/prisma/dev.db "..."` (user/pass/xp inspection)
+  - `sqlite3 prisma/prisma/dev.db "BEGIN; ... COMMIT;"` (xp reconciliation for `test`)
+  - `curl -s http://localhost:3000/api/auth/me?t=<token>`
+  - `curl -s -X POST http://localhost:3000/api/submissions/lesson ...` (defense round 1)
+  - `curl -s -X POST http://localhost:3000/api/submissions/lesson ...` (defense round 2 pass)
+  - `curl -s http://localhost:3000/parts?t=<token>` (header XP/level verification)
+- Next step:
+  - Update HANDOFF snapshot for the corrected active DB path and the new XP/skills behavior, then share a concise verification summary.
+
+## Entry — Progress Docs Snapshot Update
+- UTC timestamp: 2026-02-10T18:14:49Z
+- What changed:
+  - Updated `TODO.md` with completed XP/skills fix items.
+  - Updated `HANDOFF.md` snapshot to reflect:
+    - active runtime DB path
+    - XP refresh + `xpAwarded` API behavior
+    - skill evidence auto-write behavior
+    - remaining QA scope.
+- Files created/modified:
+  - `progress/TODO.md`
+  - `progress/HANDOFF.md`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `cat progress/HANDOFF.md`
+  - file edits via patch tool
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Final status summary to user with changed files and verification results.
+
+## Entry — Align Part 1 Completion With XP for Test Account
+- UTC timestamp: 2026-02-10T18:16:03Z
+- What changed:
+  - Inserted missing passed submissions for all Part 1 (`w01`) lessons and quest for `test` user so completion state and proof records are consistent.
+  - Re-ran first-pass XP reconciliation and recomputed `User.xp` + `User.level`.
+  - Verified final state:
+    - Part 1 lessons passed = `12/12`
+    - Part 1 quest passed = `true`
+    - `test` XP = `1650`, level = `4`
+    - header render shows `Level 4` and `150/500`.
+- Files created/modified:
+  - `prisma/prisma/dev.db` (data only)
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `sqlite3 prisma/prisma/dev.db "BEGIN; ... COMMIT;"` (insert missing passes + reconcile xp)
+  - `sqlite3 prisma/prisma/dev.db "SELECT ..."` verification queries
+  - `curl -s http://localhost:3000/parts?t=<token>` verification
+- Next step:
+  - Final response to user with exact fixes and verification checks.
+
+## Entry — HANDOFF Snapshot Refresh After Final Verification
+- UTC timestamp: 2026-02-10T18:16:21Z
+- What changed:
+  - Updated `HANDOFF.md` verification bullets to reflect latest state after Part 1 submission alignment and XP reconciliation.
+- Files created/modified:
+  - `progress/HANDOFF.md`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+  - file edit via patch
+- Next step:
+  - Share final change summary and verification outcomes with user.
+
+## Entry — Part 1 Goal Cards Rebuilt (Measurable Objectives)
+- UTC timestamp: 2026-02-10T19:31:53Z
+- What changed:
+  - Replaced each Part 1 lesson `## Goal` paragraph with a 3-line Goal Card format:
+    - `Goal (Outcome):` one measurable verb + object + context
+    - `When:` command/input conditions
+    - `Success looks like:` observable checks (output pattern, exit code, pass criteria)
+  - Kept YAML front matter unchanged in all files.
+  - Preserved all existing `Future Lock` sections.
+  - Explicitly included required Part 1 behaviors in goals:
+    - Lesson 1: `TRUST_HOME` precedence default -> env -> flag
+    - Lesson 2: reject token `>1024` bytes
+    - Lesson 3: SIGINT exits `130`
+    - Lesson 6: harness verifies exact 12 tests
+- Files created/modified:
+  - `content/trust_platform_content/parts/w01/lessons/01-boot-cli-contract.md`
+  - `content/trust_platform_content/parts/w01/lessons/02-router-safe-parse.md`
+  - `content/trust_platform_content/parts/w01/lessons/03-exit-codes-signals.md`
+  - `content/trust_platform_content/parts/w01/lessons/04-structured-logging.md`
+  - `content/trust_platform_content/parts/w01/lessons/05-trust-home-layout.md`
+  - `content/trust_platform_content/parts/w01/lessons/06-regression-harness.md`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `ls -1 content/trust_platform_content/parts/w01/lessons`
+  - `rg -n "^## Goal|^Goal \(Outcome\):|^When:|^Success looks like:" content/trust_platform_content/parts/w01/lessons/*.md`
+  - `sed -n ...` inspections for all six lesson files
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Provide user summary and offer to apply the same Goal Card transformation across Parts 2-24.
+
+## Entry — Progress Snapshot Update For Goal Card Task
+- UTC timestamp: 2026-02-10T19:32:19Z
+- What changed:
+  - Updated `TODO.md` to mark the Part 1 Goal Card rewrite task complete.
+  - Updated `HANDOFF.md` to include Goal Card status in what works.
+- Files created/modified:
+  - `progress/TODO.md`
+  - `progress/HANDOFF.md`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Deliver concise file-level summary to user.
+
+## Entry — Website Sync For Part 1 Goal Cards (No Node Runtime)
+- UTC timestamp: 2026-02-10T19:43:24Z
+- What changed:
+  - Synced updated Part 1 lesson markdown Goal Cards into active runtime DB (`prisma/prisma/dev.db`) because this environment has no Node.js and cannot run `npm run content:sync`.
+  - Updated both new and legacy duplicate Part 1 lesson slugs in DB so whichever URL variant is opened shows the new Goal Card text.
+  - Verified rendered lesson output includes `Goal (Outcome)`, `When:`, and `Success looks like:`.
+- Files created/modified:
+  - `prisma/prisma/dev.db` (data only)
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `awk` front matter strip to `/tmp/w01_goal_sync/*.md`
+  - `sqlite3 prisma/prisma/dev.db "UPDATE Lesson SET markdownContent=..."` (6 lesson slug updates)
+  - `sqlite3 prisma/prisma/dev.db "UPDATE Lesson SET markdownContent=(SELECT ... )"` (6 legacy duplicate slug updates)
+  - `sqlite3 ... SELECT instr(markdownContent,'Goal (Outcome):') ...` verification query
+  - `curl -s http://localhost:3000/parts/w01/lessons/...` render verification
+- Next step:
+  - Ask user to hard refresh the lesson page and confirm they now see Goal Cards in website content.
+
+## Entry — Progress Snapshot Update For Website Sync
+- UTC timestamp: 2026-02-10T19:43:45Z
+- What changed:
+  - Updated `TODO.md` and `HANDOFF.md` to record website-visible Goal Card sync state.
+- Files created/modified:
+  - `progress/TODO.md`
+  - `progress/HANDOFF.md`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - file edits via patch
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - User validation in browser after hard refresh.
+
+## Entry — Removed Part 1 Practice Preview (Website + Source)
+- UTC timestamp: 2026-02-10T19:45:40Z
+- What changed:
+  - Removed the `## Practice preview` section from all Part 1 lesson markdown files.
+  - Synced updated markdown content into active runtime DB (`prisma/prisma/dev.db`) so website pages immediately reflect removal.
+  - Updated both canonical and legacy duplicate Part 1 lesson slugs in DB.
+  - Verified website-rendered lesson content shows `Future Lock` directly after examples, with no `Practice preview` heading.
+- Files created/modified:
+  - `content/trust_platform_content/parts/w01/lessons/01-boot-cli-contract.md`
+  - `content/trust_platform_content/parts/w01/lessons/02-router-safe-parse.md`
+  - `content/trust_platform_content/parts/w01/lessons/03-exit-codes-signals.md`
+  - `content/trust_platform_content/parts/w01/lessons/04-structured-logging.md`
+  - `content/trust_platform_content/parts/w01/lessons/05-trust-home-layout.md`
+  - `content/trust_platform_content/parts/w01/lessons/06-regression-harness.md`
+  - `prisma/prisma/dev.db` (data only)
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `perl -0777 -i -pe 's/...## Practice preview...## Future Lock/...## Future Lock/s' ...`
+  - `sqlite3 prisma/prisma/dev.db "UPDATE Lesson SET markdownContent=..."`
+  - `sqlite3 prisma/prisma/dev.db "SELECT instr(markdownContent,'## Practice preview') ..."`
+  - `curl -s http://localhost:3000/parts/w01/lessons/01-boot?... | rg -n "Practice preview|Future Lock"`
+- Next step:
+  - User hard refresh confirmation in browser.
+
+## Entry — Training Page Reliability Fix (Auth Token Forwarding)
+- UTC timestamp: 2026-02-10T20:12:53Z
+- What changed:
+  - Added a shared client auth helper for training pages to forward `?t=<session-token>` on API calls when cookies are blocked (embedded browser mode).
+  - Updated `TrainingDashboard` fetches (`/api/training`, `/api/training/reflect`) to include tokenized URLs + `credentials: include`.
+  - Hardened `TrainingDashboard` against partial/error API payloads by normalizing arrays/objects before render.
+  - Updated drill/scenario pages to call tokenized `/api/training` and gracefully handle non-OK responses.
+- Files created/modified:
+  - `app/training/client-auth.ts` (created)
+  - `app/training/training-dashboard.tsx`
+  - `app/training/drill/[id]/page.tsx`
+  - `app/training/scenario/[id]/page.tsx`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `rg --files | rg -i 'training|train'`
+  - `sed -n ... app/training/page.tsx app/training/training-dashboard.tsx app/api/training/route.ts`
+  - `sed -n ... app/training/drill/[id]/page.tsx app/training/scenario/[id]/page.tsx app/training/review/page.tsx`
+  - `sed -n ... middleware.ts`
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Browser validation on `/training`, `/training/drill/<id>`, and `/training/scenario/<id>` using the current test account session.
+
+## Entry — Progress Snapshot Update For Training Fix
+- UTC timestamp: 2026-02-10T20:13:20Z
+- What changed:
+  - Marked Training page auth fix complete in `TODO.md`.
+  - Updated `HANDOFF.md` with the new training auth behavior and API matcher gotcha.
+- Files created/modified:
+  - `progress/TODO.md`
+  - `progress/HANDOFF.md`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - User browser validation on training routes.
+
+## Entry — Week 01 Code-First + Real Testing Button Wiring
+- UTC timestamp: 2026-02-10T23:20:09Z
+- What changed:
+  - Week 01 lessons now default to full `starter/trustctl` project files when DB `starterCode` is empty.
+  - Lesson and quest pages now pass `partSlug` into starter resolution so Week 01 can load project template automatically.
+  - Workspace initialization for Week 01 now opens real repo folder `starter/trustctl` (persistent project across lessons).
+  - Added new API route `POST /api/fs/exec` to run allowed workspace commands (`make test`, `make build`, `make clean`) with timeout and safe path restrictions.
+  - Rebuilt Cloud Terminal command routing:
+    - `make test` / `test` executes real workspace command through `/api/fs/exec`
+    - output is rendered line-by-line with PASS/FAIL coloring
+    - preserved compile/run (`run`, `g++`, `compile`) behavior for snippet execution
+    - supports external command injection from lesson UI.
+  - Added explicit `🧪 Testing` button in lesson code panel:
+    - flushes dirty files
+    - injects `make test` into embedded terminal
+    - displays real command output in terminal panel.
+  - Verified `starter/trustctl` harness behavior directly via shell (`make test`) and confirmed expected real 12-test output format.
+  - Verified content pack alignment: Part 1 markdown in repo matches zip content except intentional `order` frontmatter values used by current manifest sequencing.
+- Files created/modified:
+  - `lib/starter-code.ts`
+  - `app/parts/[partSlug]/lessons/[lessonSlug]/page.tsx`
+  - `app/parts/[partSlug]/quest/page.tsx`
+  - `app/api/fs/init-workspace/route.ts`
+  - `app/api/fs/exec/route.ts` (new)
+  - `app/components/lesson/cloud-terminal.tsx`
+  - `app/components/lesson/code-editor-panel.tsx`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `diff -ru --strip-trailing-cr ... trust_part1_code_and_tests_pack ... content/trust_platform_content/parts/w01`
+  - `diff -ru -I '^order:' ...`
+  - `sqlite3 prisma/prisma/dev.db ...` checks for w01 starter/content rows
+  - `cd starter/trustctl && make test`
+  - `rg -n ...` verification across changed files
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Browser-verify `/parts/w01/lessons/*` Testing button executes `make test` and streams output in embedded terminal.
+
+## Entry — Progress Snapshot Update For Week 01 Rebuild
+- UTC timestamp: 2026-02-10T23:20:40Z
+- What changed:
+  - Updated TODO checklist with completed Week 01 code-first + Testing-button tasks.
+  - Updated HANDOFF with current architecture notes for starter workspace loading and `/api/fs/exec` command path.
+- Files created/modified:
+  - `progress/TODO.md`
+  - `progress/HANDOFF.md`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - User UI validation on lesson Testing button and workspace persistence across Week 01 lessons.
+
+## Entry — Part 1 Content Sync To Active Runtime DB
+- UTC timestamp: 2026-02-10T23:21:50Z
+- What changed:
+  - Synced Week 01 lesson/training markdown bodies from `content/trust_platform_content/parts/w01` into active DB `prisma/prisma/dev.db`.
+  - Synced Week 01 quest markdown body into active DB.
+  - Verified updated records by slug with body length and `Future Lock` presence checks.
+- Files created/modified:
+  - `prisma/prisma/dev.db` (data only)
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `awk` front matter strip for lesson/training/quest files
+  - `sqlite3 prisma/prisma/dev.db "UPDATE Lesson ..."`
+  - `sqlite3 prisma/prisma/dev.db "UPDATE Quest ..."`
+  - verification queries on `Lesson` + `Quest`
+- Next step:
+  - Browser refresh and validate Week 01 lesson content + Testing button behavior.
+
+## Entry — Reset Test Account To Fresh State
+- UTC timestamp: 2026-02-10T23:52:44Z
+- What changed:
+  - Reset `test` user account state to new-account baseline in active DB `prisma/prisma/dev.db`.
+  - Set user stats to defaults: `level=1`, `xp=0`, `gems=0`, streak fields cleared.
+  - Cleared user learning/progress data:
+    - submissions, reviews, progress rows, achievements
+    - training logs/weekly gates/benchmarks
+    - skill tree evidence (`UserSkill`, `SkillContext`, `SkillAttempt`)
+    - flashcard state (`UserFlashcard`, `FlashcardSettings`, dependent `FlashcardReview`)
+    - progress events
+  - Kept account identity/login credentials intact.
+- Files created/modified:
+  - `prisma/prisma/dev.db` (data only)
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `sqlite3 prisma/prisma/dev.db "BEGIN; ... COMMIT;"` reset transaction
+  - verification queries on user stats and all user-scoped tables
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Refresh UI while logged into `test` to confirm fresh account state is shown.
+
+## Entry — Starter Reset To Zero (CMake -> a.out)
+- UTC timestamp: 2026-02-10T23:59:06Z
+- What changed:
+  - Replaced `starter/trustctl/src/main.cpp` with a true zero-start scaffold (no pre-solved Week 01 behavior).
+  - Switched starter build flow to CMake and output binary `a.out`.
+  - Added `starter/trustctl/CMakeLists.txt`.
+  - Updated `starter/trustctl/Makefile` to run `cmake -S . -B build`, build target, and copy `build/a.out` to project root.
+  - Updated test harness to execute `./a.out` instead of `./trustctl` so lesson Testing button (`make test`) still works.
+  - Removed committed prebuilt binary `starter/trustctl/trustctl` and added `.gitignore` for `build/` and `a.out`.
+  - Updated starter README to show CMake-first usage.
+- Files created/modified:
+  - `starter/trustctl/src/main.cpp`
+  - `starter/trustctl/CMakeLists.txt` (new)
+  - `starter/trustctl/Makefile`
+  - `starter/trustctl/tests/run.sh`
+  - `starter/trustctl/README.md`
+  - `starter/trustctl/.gitignore` (new)
+  - `starter/trustctl/trustctl` (removed)
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - file rewrites via shell redirection (`cat > ...`)
+  - `rm -f starter/trustctl/trustctl`
+  - `make test` (in `starter/trustctl`)
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Validate lesson IDE opens updated zero-starter files and that `🧪 Testing` shows failing/passing harness output as learner progresses.
+
+## Entry — Progress Snapshot Updated After Starter Reset
+- UTC timestamp: 2026-02-10T23:59:36Z
+- What changed:
+  - Updated TODO checklist to include completed starter reset task.
+  - Updated HANDOFF notes to reflect new zero-baseline CMake starter and required toolchain (`cmake`, `c++`).
+- Files created/modified:
+  - `progress/TODO.md`
+  - `progress/HANDOFF.md`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Confirm in browser lesson IDE that Week 01 opens blank starter and Testing button output references `./a.out` harness execution.
+
+## Entry — Synced Active W01 Workspace To New Blank Starter
+- UTC timestamp: 2026-02-11T00:00:50Z
+- What changed:
+  - Found stale code in active learner workspace (`~/.tsp-workspaces/w01/trustctl`) that still had old pre-solved starter.
+  - Replaced workspace folder with current `starter/trustctl` so website editor shows blank CMake starter immediately.
+  - Verified workspace `make test` path works with new `a.out` target and deterministic harness execution.
+  - Cleaned generated artifacts (`build/`, `a.out`) from both template and workspace after verification.
+- Files created/modified:
+  - `~/.tsp-workspaces/w01/trustctl/*` (workspace snapshot refreshed from starter)
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - `rm -rf ~/.tsp-workspaces/w01/trustctl && cp -R starter/trustctl ~/.tsp-workspaces/w01/trustctl`
+  - `make test || true` (in `~/.tsp-workspaces/w01/trustctl`)
+  - `make clean` (in both starter and workspace)
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Hard-refresh lesson page and confirm editor opens blank `src/main.cpp` with CMake `Makefile` and tests expecting learner implementation.
+
+## Entry — Training Gym Reliability Fix (Auth + Route Params)
+- UTC timestamp: 2026-02-11T00:16:49Z
+- What changed:
+  - Fixed training API auth in embedded/no-cookie mode by resolving user from request token sources (`?t=`, `sessionToken`, `session`, `x-session-token`, cookie) before fallback auth.
+  - Patched endpoints:
+    - `GET /api/training`
+    - `POST /api/training/reflect`
+    - `GET/POST /api/training-log`
+  - Fixed Training CTA lesson link to include part slug (`/lesson/{partSlug}/{lessonSlug}`) instead of incomplete `/lesson/{lessonSlug}`.
+  - Fixed drill/scenario pages to read dynamic route id with `useParams` instead of `params.then(...)`.
+  - Added explicit Training Dashboard error state with reload action when training API payload fails.
+- Files created/modified:
+  - `app/api/training/route.ts`
+  - `app/api/training/reflect/route.ts`
+  - `app/api/training-log/route.ts`
+  - `app/training/drill/[id]/page.tsx`
+  - `app/training/scenario/[id]/page.tsx`
+  - `app/training/training-dashboard.tsx`
+  - `progress/TODO.md`
+  - `progress/HANDOFF.md`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - code search/inspection with `rg`, `sed`, `find`, `git diff`, `git status`
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Browser-verify `/training`, one drill page, and one scenario page in the current account session.
+
+## Entry — Lesson Testing Button Reliability + Deterministic Harness
+- UTC timestamp: 2026-02-11T00:21:20Z
+- What changed:
+  - Hardened `POST /api/fs/exec` so `make` commands run from the nearest valid build root (Makefile/CMakeLists), with fallback to `starter/trustctl` when cwd is wrong.
+  - Included resolved execution cwd in `/api/fs/exec` response for terminal transparency.
+  - Improved embedded terminal parsing/styling so PASS/FAIL/Summary lines render correctly even with leading spaces or `\r` characters.
+  - Ensured deterministic harness usage by invoking `--testing` in help/version tests as well.
+  - Synced deterministic `tests/run.sh` into existing `~/.tsp-workspaces/w01/trustctl` copy.
+- Files created/modified:
+  - `app/api/fs/exec/route.ts`
+  - `app/components/lesson/cloud-terminal.tsx`
+  - `starter/trustctl/tests/run.sh`
+  - `progress/TODO.md`
+  - `progress/HANDOFF.md`
+  - `progress/BUILD_LOG.md`
+  - `~/.tsp-workspaces/w01/trustctl/tests/run.sh` (synced copy)
+- Commands run:
+  - file inspection with `sed`, `rg`
+  - `make test || true` in `starter/trustctl` (verified command output + summary visibility)
+  - `cp starter/trustctl/tests/run.sh ~/.tsp-workspaces/w01/trustctl/tests/run.sh`
+  - `make clean` in starter/workspace
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Browser-verify lesson `🧪 Testing` button output for one Week 01 lesson and confirm full PASS/FAIL stream + final summary line appears.
+
+## Entry — Hide Week 01 Build Scaffold Files From Lesson UI
+- UTC timestamp: 2026-02-11T00:25:33Z
+- What changed:
+  - Added hide support in lesson file tree component so selected filenames can be hidden from UI.
+  - For Part `w01`, lesson editor now hides root `Makefile` and `CMakeLists.txt` entries from file tree.
+  - Improved default file-open behavior when opening a workspace:
+    - prefer `src/main.cpp`
+    - skip hidden root files if picking first fallback file.
+  - This keeps `🧪 Testing` (`make test`) functional while removing scaffold visibility for learner flow.
+- Files created/modified:
+  - `app/components/lesson/file-tree.tsx`
+  - `app/components/lesson/code-editor-panel.tsx`
+  - `progress/TODO.md`
+  - `progress/HANDOFF.md`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - file inspection with `sed`, `rg`
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Hard-refresh lesson page and confirm `Makefile` / `CMakeLists.txt` are hidden from file tree while Testing button still runs.
+
+## Entry — Part 1 Structure Fix (Kinds + Intro/Quiz + Training Separation)
+- UTC timestamp: 2026-02-11T00:39:34Z
+- What changed:
+  - Implemented kind-based content model support and filtering paths:
+    - added `lib/content-kind.ts` to normalize/infer content kinds (`intro`, `lesson`, `training`, `boss`, `quiz`)
+    - updated `lib/schemas.ts` to normalize frontmatter `kind`
+    - updated `lib/content-loader.ts` to carry lesson/quest kind
+    - updated `scripts/sync-content.ts` to skip `training` lessons in DB sync (prevents duplicated core lesson rows)
+  - Added `lib/part-content.ts` to load per-part intro/quiz markdown + lesson-kind map from manifest/frontmatter.
+  - Part page now shows structure requested and hides training duplicates:
+    - `app/parts/[partSlug]/page.tsx` filters out training lessons
+    - adds explicit Intro card (`/parts/[partSlug]/intro`)
+    - keeps Boss card (`/parts/[partSlug]/quest`)
+    - adds Quiz card (`/parts/[partSlug]/quiz`)
+  - Added read-only pages:
+    - `app/parts/[partSlug]/intro/page.tsx`
+    - `app/parts/[partSlug]/quiz/page.tsx`
+  - Lesson route navigation now excludes training rows and blocks non-lesson content on lesson URL:
+    - `app/parts/[partSlug]/lessons/[lessonSlug]/page.tsx`
+  - Global course cards now count only core lessons (training excluded):
+    - `app/parts/page.tsx`
+  - Removed hard “create docs” requirement from Week 01 training content; docs are optional, proof is code/tests:
+    - `content/trust_platform_content/parts/w01/training/01-boot.md`
+    - `content/trust_platform_content/parts/w01/training/03-exit-codes.md`
+    - `content/trust_platform_content/parts/w01/training/04-logging.md`
+    - `content/trust_platform_content/parts/w01/training/05-trust-home.md`
+- Files created/modified:
+  - `lib/content-kind.ts` (new)
+  - `lib/part-content.ts` (new)
+  - `lib/schemas.ts`
+  - `lib/content-loader.ts`
+  - `scripts/sync-content.ts`
+  - `app/parts/[partSlug]/page.tsx`
+  - `app/parts/[partSlug]/lessons/[lessonSlug]/page.tsx`
+  - `app/parts/page.tsx`
+  - `app/parts/[partSlug]/intro/page.tsx` (new)
+  - `app/parts/[partSlug]/quiz/page.tsx` (new)
+  - `content/trust_platform_content/parts/w01/training/01-boot.md`
+  - `content/trust_platform_content/parts/w01/training/03-exit-codes.md`
+  - `content/trust_platform_content/parts/w01/training/04-logging.md`
+  - `content/trust_platform_content/parts/w01/training/05-trust-home.md`
+  - `progress/TODO.md`
+  - `progress/HANDOFF.md`
+  - `progress/BUILD_LOG.md`
+- Commands run:
+  - code inspection/search via `sed`, `rg`, `git status`
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Hard-refresh `/parts/w01` and verify list shows Intro + Lessons 1..N + Boss + Quiz with no `Training:` duplicates.

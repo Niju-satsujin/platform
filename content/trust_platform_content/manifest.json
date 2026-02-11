@@ -11,11 +11,17 @@
         "quest": "parts/w01/quest.md",
         "lessons": [
           "parts/w01/lessons/01-boot-cli-contract.md",
-          "parts/w01/lessons/02-router-buffer-guard.md",
-          "parts/w01/lessons/03-exit-codes-sigint.md",
+          "parts/w01/training/01-boot.md",
+          "parts/w01/lessons/02-router-safe-parse.md",
+          "parts/w01/training/02-router.md",
+          "parts/w01/lessons/03-exit-codes-signals.md",
+          "parts/w01/training/03-exit-codes.md",
           "parts/w01/lessons/04-structured-logging.md",
-          "parts/w01/lessons/05-correlation-id.md",
-          "parts/w01/lessons/06-regression-harness.md"
+          "parts/w01/training/04-logging.md",
+          "parts/w01/lessons/05-trust-home-layout.md",
+          "parts/w01/training/05-trust-home.md",
+          "parts/w01/lessons/06-regression-harness.md",
+          "parts/w01/training/06-harness.md"
         ]
       }
     },

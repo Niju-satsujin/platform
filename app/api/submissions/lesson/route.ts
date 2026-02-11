@@ -44,6 +44,13 @@ export async function POST(request: Request) {
       codeSnapshot,
     });
 
+    const latestUser = result.status === "passed"
+      ? await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { xp: true, level: true },
+        })
+      : null;
+
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
       include: { part: true },
@@ -68,6 +75,9 @@ export async function POST(request: Request) {
       message: result.message,
       submissionId: result.submissionId,
       uploadPath,
+      xpAwarded: result.xpAwarded ?? 0,
+      currentXp: latestUser?.xp ?? user.xp,
+      currentLevel: latestUser?.level ?? user.level,
       defenseVerdict: result.defenseVerdict,
       coachMode: result.coachMode,
       nextActions: result.nextActions,

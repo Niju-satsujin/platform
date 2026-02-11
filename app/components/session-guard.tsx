@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 /**
@@ -14,7 +14,7 @@ import { usePathname, useSearchParams } from "next/navigation";
  * Flow:
  *   1. Login page stores token in localStorage after successful auth
  *   2. On every page load / navigation, this component checks:
- *      - If on /login but localStorage has a token → redirect to /?t=TOKEN
+ *      - If on /login but localStorage has a VALID token → redirect to /?t=TOKEN
  *      - If localStorage has a token but the URL doesn't → update URL + reload
  *      - If the URL has a token but localStorage doesn't → save it
  *   3. Middleware reads `?t=` and injects into request via x-session-token header
@@ -27,6 +27,7 @@ const URL_PARAM = "t";
 export function SessionGuard() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const validatingRef = useRef(false);
 
   useEffect(() => {
     const urlToken = searchParams.get(URL_PARAM)
@@ -41,11 +42,28 @@ export function SessionGuard() {
     }
 
     // ── On auth pages (/login, /register): if we have a stored token,
-    //    bounce back to the dashboard. This handles the case where the
-    //    server redirected here because no cookie/token was in the URL.
+    //    validate it first. Only redirect if it's actually valid.
+    //    This prevents an infinite loop when the token is stale/expired.
     if (pathname === "/login" || pathname === "/register") {
-      if (storedToken) {
-        window.location.replace(`/?${URL_PARAM}=${encodeURIComponent(storedToken)}`);
+      if (storedToken && !validatingRef.current) {
+        validatingRef.current = true;
+        fetch(`/api/auth/me?t=${encodeURIComponent(storedToken)}`)
+          .then((r) => r.json())
+          .then((data) => {
+            if (data?.ok) {
+              // Token is valid — redirect to dashboard
+              window.location.replace(`/?${URL_PARAM}=${encodeURIComponent(storedToken!)}`);
+            } else {
+              // Token is invalid/expired — clear it and stay on login
+              try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+            }
+          })
+          .catch(() => {
+            // Network error — don't redirect, stay on login
+          })
+          .finally(() => {
+            validatingRef.current = false;
+          });
       }
       return;
     }

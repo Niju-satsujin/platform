@@ -26,7 +26,21 @@
 - [x] Integrate visual mapping pack + hero visuals + attribution
 - [x] Rewrite Part 1 lessons and quest in simple English
 - [x] Rewrite Week 2 (Days 8-13) to Day 1 quality
+- [x] Rebuild Part 1 lesson Goal sections into measurable Goal Cards (Outcome/When/Success)
+- [x] Sync Part 1 Goal Card content to active runtime DB (`prisma/prisma/dev.db`) for immediate website visibility
 - [x] Add AI Tutor engine with strict JSON schema contract (`coach_mode` + `defense_verdict`)
 - [x] Add Defense Mode submission gate (pending challenge before pass/fail)
 - [x] Update submit UI flows to support challenge/explanation round trip
+- [x] Fix XP refresh flow after pass and return `xpAwarded` in submission APIs
+- [x] Wire automatic skill evidence updates on first lesson/quest pass
+- [x] Reconcile `test` account XP in active DB and verify skill writes end-to-end
+- [x] Fix Training page API auth in embedded/no-cookie mode by forwarding `?t=` on client fetches
+- [x] Rebuild Week 01 as code-first with real `starter/trustctl` workspace in lesson IDE
+- [x] Add working lesson-page `Testing` button that runs `make test` in embedded terminal output
+- [x] Reset `starter/trustctl` to true blank baseline (no pre-solved logic), CMake-first build to `a.out`
+- [x] Fix Training Gym API auth for token-in-query mode and repair drill/scenario page routing
+- [x] Harden lesson Testing runner: execute `make test` from trustctl root and enforce deterministic harness usage (`--testing`)
+- [x] Hide Week 01 `Makefile` / `CMakeLists.txt` from lesson file tree so learner builds own setup without scaffold leakage
+- [x] Add kind-aware content filtering: hide `training` from Part page, keep training-only UI in `/training`, and add Intro/Quiz entries
+- [x] Remove hard requirement to create `docs/cli-contract.md` in Week 01 training content (make optional; code+tests first)
 - [ ] Final QA walkthrough and finalize HANDOFF snapshot

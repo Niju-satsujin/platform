@@ -98,7 +98,8 @@ async function main() {
     });
 
     // Track which lesson slugs belong to this part (for stale cleanup)
-    const manifestLessonSlugs = new Set(parsed.lessons.map((l) => l.slug));
+    const importableLessons = parsed.lessons.filter((l) => l.kind !== "training");
+    const manifestLessonSlugs = new Set(importableLessons.map((l) => l.slug));
 
     // Delete stale lessons for this part
     const existingLessons = await prisma.lesson.findMany({
@@ -113,7 +114,7 @@ async function main() {
     }
 
     // Upsert lessons
-    for (const lesson of parsed.lessons) {
+    for (const lesson of importableLessons) {
       await prisma.lesson.upsert({
         where: { partId_slug: { partId: dbPart.id, slug: lesson.slug } },
         update: {
@@ -167,7 +168,11 @@ async function main() {
       totalQuests++;
     }
 
-    console.log(`  ✓ Part ${parsed.frontmatter.order}: ${parsed.slug} (${parsed.lessons.length} lessons)`);
+    const trainingCount = parsed.lessons.length - importableLessons.length;
+    const trainingNote = trainingCount > 0 ? `, skipped ${trainingCount} training` : "";
+    console.log(
+      `  ✓ Part ${parsed.frontmatter.order}: ${parsed.slug} (${importableLessons.length} lessons${trainingNote})`
+    );
   }
 
   console.log("");
@@ -188,7 +193,10 @@ async function main() {
     );
   }
 
-  const expectedLessons = parsedParts.reduce((sum, p) => sum + p.lessons.length, 0);
+  const expectedLessons = parsedParts.reduce(
+    (sum, p) => sum + p.lessons.filter((l) => l.kind !== "training").length,
+    0
+  );
   if (finalLessonCount !== expectedLessons) {
     throw new Error(
       `Lesson count mismatch! DB has ${finalLessonCount}, manifest expects ${expectedLessons}`

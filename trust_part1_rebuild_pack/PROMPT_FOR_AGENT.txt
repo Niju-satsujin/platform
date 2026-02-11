@@ -1,0 +1,38 @@
+You are my Course Rebuilder Agent.
+
+Goal: Rebuild Part 1 (w01) so it is NOT confusing. Use a two-page model:
+- Lesson Overview pages: explain concept + problem + how to use + practice preview (NO GYM here).
+- Training pages: contain the GYM session (Warmup/Work/Prove/Ship) with step-by-step tasks.
+
+INPUTS
+Use the attached pack as the target structure:
+- manifest.json
+- parts/w01-cli-logger-discipline/part.md
+- parts/w01-cli-logger-discipline/lessons/*.md
+- parts/w01-cli-logger-discipline/training/*.md
+- parts/w01-cli-logger-discipline/quest.md
+- parts/w01-cli-logger-discipline/quiz.md
+
+NON-NEGOTIABLE RULES
+1) Do NOT change file paths, filenames, IDs, or YAML front matter keys. Rewrite only bodies if needed.
+2) No solution code. Only exact run/test commands and expected output patterns.
+3) Keep English simple. Short sentences. No long theory blocks.
+4) Every lesson and training page MUST include Future Lock: name the future week that depends on it and why.
+5) Quizzes must be scenario/debugging-based (no definitions).
+
+PART 1 “GAP FILLER” MANDATES
+- Lesson 1 Boot: env var override TRUST_HOME + flags. Use 12-Factor Config: https://12factor.net/config
+- Lesson 2 Router: token limit 1KB (reject >1024). Mention CWE-120: https://cwe.mitre.org/data/definitions/120.html
+- Lesson 3 Exit codes: handle SIGINT and exit 130. Link: https://man7.org/linux/man-pages/man2/sigaction.2.html and https://www.ibm.com/docs/sr/SSWRJV_10.1.0/lsf_admin/job_exit_codes_lsf.html
+- Lesson 6 Harness: list EXACT 12 regression tests (help/version/unknown/missing/env-vs-flag/oversize/logs/request_id/SIGINT=130).
+
+LINKING RULE
+Every technical concept mentioned must be a markdown link to high-quality docs:
+- GNU CLI help/version: https://www.gnu.org/prep/standards/html_node/Command_002dLine-Interfaces.html
+- --help behavior: https://www.gnu.org/prep/standards/html_node/_002d_002dhelp.html
+- POSIX utility conventions: https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap12.html
+- 12-Factor config/logs: https://12factor.net/config and https://12factor.net/logs
+- Signals: https://man7.org/linux/man-pages/man7/signal.7.html
+
+Deliverable:
+- Updated Part 1 files matching this structure, with clear navigation: Intro → Lesson Overview → Training → Boss → Quiz.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { CodeEditor } from "@/app/components/code-editor";
 
 export function SubmissionForm({
@@ -18,6 +19,7 @@ export function SubmissionForm({
   starterCode?: string;
   hasEditor?: boolean;
 }) {
+  const router = useRouter();
   const [text, setText] = useState(starterCode || "");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,6 +72,7 @@ export function SubmissionForm({
         setDefenseSubmissionId(null);
         setDefensePrompt("");
         setDefenseResponse("");
+        router.refresh();
       } else {
         setDefenseSubmissionId(null);
       }
@@ -118,6 +121,7 @@ export function SubmissionForm({
         setDefenseSubmissionId(null);
         setDefensePrompt("");
         setDefenseResponse("");
+        router.refresh();
       } else if (data.status === "pending") {
         setDefensePrompt(data.message || defensePrompt);
       } else {

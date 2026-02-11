@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 import { getPartProgress, hasPassedLesson } from "@/lib/progress";
+import { getPartSupplementalContent } from "@/lib/part-content";
+import { inferLessonKindFromRecord, type ContentKind } from "@/lib/content-kind";
 
 export default async function PartPage({ params }: { params: Promise<{ partSlug: string }> }) {
   const { partSlug } = await params;
@@ -16,10 +19,59 @@ export default async function PartPage({ params }: { params: Promise<{ partSlug:
 
   if (!part) notFound();
 
-  const partProgress = await getPartProgress(part.id);
-  const completedCount = partProgress?.completedLessons ?? 0;
-  const questDone = partProgress?.questCompleted ?? false;
-  const totalLessons = part.lessons.length;
+  const supplemental = getPartSupplementalContent(partSlug);
+  const lessonKindBySlug =
+    supplemental?.lessonKindBySlug ?? new Map<string, ContentKind>();
+  const coreLessons = part.lessons.filter((lesson) => {
+    const kind =
+      lessonKindBySlug.get(lesson.slug) ??
+      inferLessonKindFromRecord({
+        title: lesson.title,
+        slug: lesson.slug,
+        contentId: lesson.contentId,
+      });
+    return kind === "lesson";
+  });
+  const coreLessonIdSet = new Set(coreLessons.map((l) => l.id));
+
+  const user = await getCurrentUser();
+  const [partProgress, passedLessonRows, questPass] = await Promise.all([
+    getPartProgress(part.id),
+    user
+      ? prisma.submission.findMany({
+          where: {
+            userId: user.id,
+            status: "passed",
+            lesson: { partId: part.id },
+            lessonId: { not: null },
+          },
+          distinct: ["lessonId"],
+          select: { lessonId: true },
+        })
+      : Promise.resolve([]),
+    user
+      ? prisma.submission.findFirst({
+          where: {
+            userId: user.id,
+            status: "passed",
+            quest: { partId: part.id },
+            questId: { not: null },
+          },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  const completedFromProgress = Math.min(
+    partProgress?.completedLessons ?? 0,
+    coreLessons.length
+  );
+  const completedFromSubmissions = passedLessonRows.filter(
+    (row) => !!row.lessonId && coreLessonIdSet.has(row.lessonId)
+  ).length;
+  const completedCount = Math.max(completedFromProgress, completedFromSubmissions);
+  const questDone = (partProgress?.questCompleted ?? false) || !!questPass;
+  const totalLessons = coreLessons.length;
   const pct = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
   const xpEarned = completedCount * 100 + (questDone ? 250 : 0);
   const totalXp = totalLessons * 100 + (part.quest ? 250 : 0);
@@ -72,13 +124,38 @@ export default async function PartPage({ params }: { params: Promise<{ partSlug:
         </div>
       </div>
 
+      {/* Intro card */}
+      <div className="mb-4">
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-4">Intro</h2>
+        <Link
+          href={`/parts/${partSlug}/intro`}
+          className="game-card flex items-center gap-4 p-4 group"
+        >
+          <div className="lesson-num bg-blue-950 text-blue-400 border border-blue-800/30">
+            i
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-medium text-gray-100 group-hover:text-yellow-500 transition-colors text-[15px] truncate">
+              {supplemental?.introTitle || `Intro: ${part.title}`}
+            </h3>
+            <div className="flex items-center gap-3 mt-0.5">
+              <span className="text-xs text-gray-500">Overview</span>
+              <span className="text-xs text-blue-400">Read first</span>
+            </div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 group-hover:text-yellow-500 transition-colors">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </Link>
+      </div>
+
       {/* Lesson list */}
       <div className="mb-4">
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-4">Lessons</h2>
       </div>
 
       <div className="flex flex-col gap-2.5 mb-8">
-        {part.lessons.map(async (lesson) => {
+        {coreLessons.map(async (lesson) => {
           const passed = await hasPassedLesson(lesson.id);
           return (
             <Link
@@ -172,6 +249,33 @@ export default async function PartPage({ params }: { params: Promise<{ partSlug:
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Quiz card */}
+      {supplemental?.quizMarkdown && (
+        <div className="mt-6">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-4">Quiz</h2>
+          <Link
+            href={`/parts/${partSlug}/quiz`}
+            className="game-card flex items-center gap-4 p-4 group"
+          >
+            <div className="lesson-num bg-purple-950 text-purple-400 border border-purple-800/30">
+              ?
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-medium text-gray-100 group-hover:text-yellow-500 transition-colors text-[15px] truncate">
+                {supplemental.quizTitle || "Quiz"}
+              </h3>
+              <div className="flex items-center gap-3 mt-0.5">
+                <span className="text-xs text-gray-500">Readiness check</span>
+                <span className="text-xs text-purple-400">After boss</span>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 group-hover:text-yellow-500 transition-colors">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </Link>
         </div>
       )}
     </div>

@@ -18,6 +18,8 @@ interface FileTreeProps {
   onOpenFile: (filePath: string) => void;
   /** Called when user wants to open a different folder */
   onOpenFolder?: () => void;
+  /** Hide specific filenames from the rendered tree */
+  hiddenFileNames?: string[];
 }
 
 export function FileTree({
@@ -25,6 +27,7 @@ export function FileTree({
   activeFile,
   onOpenFile,
   onOpenFolder,
+  hiddenFileNames = [],
 }: FileTreeProps) {
   const [entries, setEntries] = useState<TreeEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +60,30 @@ export function FileTree({
 
   // Folder name for the header
   const rootName = rootDir.split("/").filter(Boolean).pop() || rootDir;
+  const hiddenSet = new Set(hiddenFileNames.map((n) => n.toLowerCase()));
+
+  const filterEntries = useCallback(
+    (nodes: TreeEntry[]): TreeEntry[] => {
+      const visible: TreeEntry[] = [];
+      for (const node of nodes) {
+        if (node.type === "file") {
+          if (hiddenSet.has(node.name.toLowerCase())) continue;
+          visible.push(node);
+          continue;
+        }
+
+        const children = node.children ? filterEntries(node.children) : [];
+        // Keep directories only if they still have visible children.
+        if (children.length > 0) {
+          visible.push({ ...node, children });
+        }
+      }
+      return visible;
+    },
+    [hiddenSet]
+  );
+
+  const visibleEntries = filterEntries(entries);
 
   return (
     <div className="flex flex-col h-full bg-gray-950 text-sm select-none overflow-hidden">
@@ -95,10 +122,10 @@ export function FileTree({
         {error && (
           <div className="px-3 py-2 text-red-400 text-xs">{error}</div>
         )}
-        {!loading && !error && entries.length === 0 && (
+        {!loading && !error && visibleEntries.length === 0 && (
           <div className="px-3 py-2 text-gray-600 text-xs">Empty directory</div>
         )}
-        {entries.map((entry) => (
+        {visibleEntries.map((entry) => (
           <TreeNode
             key={entry.path}
             entry={entry}

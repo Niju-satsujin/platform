@@ -1,6 +1,5 @@
 "use client";
 
-import { TrainingSessionCard } from "./training-session-card";
 import { VisualModelCard, type VisualData } from "./visual-model-card";
 import { InteractiveContent } from "./interactive-content";
 
@@ -64,18 +63,6 @@ export function LessonContentPanel({
 
       {/* ===== Hero Visual Model ===== */}
       {heroVisual && <VisualModelCard visual={heroVisual} />}
-
-      {/* ===== Training Session Card (GYM EDITION) ===== */}
-      <TrainingSessionCard
-        durationMinutes={durationMinutes}
-        goal={goal}
-        deliverable={deliverable}
-        doSteps={doSteps}
-        whatCounts={whatCounts}
-        proofInstructions={proofInstructions}
-        isQuest={isQuest}
-        passed={passed}
-      />
 
       {/* ===== Markdown lesson content ===== */}
       <div style={{ maxWidth: '70ch' }}>

@@ -10,7 +10,11 @@ import { guessLanguage, type StarterFiles } from "@/lib/starter-code";
 import { useEditorMode } from "@/lib/use-editor-mode";
 
 /** localStorage key for persisted workspace directory */
-function workspaceStorageKey(lessonId: string) {
+function workspaceStorageKey(lessonId: string, partSlug: string) {
+  // Week 01 is one continuous trustctl project across lessons.
+  if (partSlug === "w01") {
+    return "tsp_workspace_w01_trustctl";
+  }
   return `tsp_workspace_${lessonId}`;
 }
 
@@ -61,6 +65,9 @@ export function CodeEditorPanel({
   mode: _mode,
   passed: _passed,
 }: CodeEditorPanelProps) {
+  const hiddenRootFileNames = partSlug === "w01"
+    ? ["Makefile", "CMakeLists.txt"]
+    : [];
   const [workspaceDir, setWorkspaceDir] = useState<string>("");
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -68,6 +75,8 @@ export function CodeEditorPanel({
   const [saving, setSaving] = useState(false);
   const [ready, setReady] = useState(false);
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+  const [terminalCommand, setTerminalCommand] = useState<string>("");
+  const [terminalCommandNonce, setTerminalCommandNonce] = useState(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const initRef = useRef(false);
   const { editorMode } = useEditorMode();
@@ -85,29 +94,58 @@ export function CodeEditorPanel({
 
       // Persist choice
       try {
-        localStorage.setItem(workspaceStorageKey(lessonId), dir);
+        localStorage.setItem(workspaceStorageKey(lessonId, partSlug), dir);
       } catch { /* full */ }
 
       // Try to open a sensible default file
       try {
         const treeRes = await fetch(
-          `/api/fs/tree?path=${encodeURIComponent(dir)}&depth=1`
+          `/api/fs/tree?path=${encodeURIComponent(dir)}&depth=2`
         );
         if (treeRes.ok) {
           const treeData = await treeRes.json();
-          const firstFile = (treeData.entries || []).find(
-            (e: { type: string }) => e.type === "file"
+          const entries = (treeData.entries || []) as Array<{
+            type: string;
+            path: string;
+            name: string;
+            children?: Array<{ type: string; path: string; name: string }>;
+          }>;
+
+          const hidden = new Set(hiddenRootFileNames.map((n) => n.toLowerCase()));
+
+          let candidatePath = "";
+          const srcDir = entries.find(
+            (e) => e.type === "directory" && e.name === "src"
           );
-          if (firstFile) {
+          if (srcDir?.children) {
+            const srcMain = srcDir.children.find(
+              (c) => c.type === "file" && c.name === "main.cpp"
+            );
+            if (srcMain) {
+              candidatePath = srcMain.path;
+            }
+          }
+
+          if (!candidatePath) {
+            const firstFile = entries.find(
+              (e) => e.type === "file" && !hidden.has(e.name.toLowerCase())
+            );
+            if (firstFile) {
+              candidatePath = firstFile.path;
+            }
+          }
+
+          if (candidatePath) {
             const readRes = await fetch(
-              `/api/fs/read?path=${encodeURIComponent(firstFile.path)}`
+              `/api/fs/read?path=${encodeURIComponent(candidatePath)}`
             );
             if (readRes.ok) {
               const fileData = await readRes.json();
+              const name = candidatePath.split("/").pop() || candidatePath;
               setOpenFiles([
                 {
-                  path: firstFile.path,
-                  name: firstFile.name,
+                  path: candidatePath,
+                  name,
                   content: fileData.content,
                   dirty: false,
                 },
@@ -117,7 +155,7 @@ export function CodeEditorPanel({
         }
       } catch { /* ignore */ }
     },
-    [lessonId]
+    [hiddenRootFileNames, lessonId, partSlug]
   );
 
   /* ── Initialize workspace on mount ── */
@@ -129,8 +167,17 @@ export function CodeEditorPanel({
       // Check if user previously chose a custom workspace for this lesson
       let savedDir = "";
       try {
-        savedDir = localStorage.getItem(workspaceStorageKey(lessonId)) || "";
+        savedDir = localStorage.getItem(workspaceStorageKey(lessonId, partSlug)) || "";
       } catch { /* ignore */ }
+
+      // Force Week 01 to use the real starter/trustctl workspace path.
+      if (
+        partSlug === "w01" &&
+        savedDir &&
+        !/[\\/]starter[\\/]trustctl$/.test(savedDir)
+      ) {
+        savedDir = "";
+      }
 
       if (savedDir) {
         // Verify the saved directory still exists
@@ -163,7 +210,7 @@ export function CodeEditorPanel({
 
         // Persist default workspace
         try {
-          localStorage.setItem(workspaceStorageKey(lessonId), dir);
+          localStorage.setItem(workspaceStorageKey(lessonId, partSlug), dir);
         } catch { /* full */ }
 
         // Open the main starter file from disk
@@ -354,6 +401,7 @@ export function CodeEditorPanel({
             activeFile={activeFile?.path}
             onOpenFile={handleOpenFile}
             onOpenFolder={() => setFolderPickerOpen(true)}
+            hiddenFileNames={hiddenRootFileNames}
           />
         </div>
       )}
@@ -412,6 +460,25 @@ export function CodeEditorPanel({
               title="Open folder…"
             >
               📂 Open Folder
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const dirty = openFiles.filter((f) => f.dirty);
+                if (dirty.length > 0) {
+                  for (const file of dirty) {
+                    // Flush pending edits before running make test.
+                    await saveFile(file.path, file.content);
+                  }
+                }
+                setTerminalCommand("make test");
+                setTerminalCommandNonce((n) => n + 1);
+              }}
+              className="editor-btn text-[11px]"
+              title="Run make test in the embedded terminal"
+              disabled={!workspaceDir}
+            >
+              🧪 Testing
             </button>
             {saving && <span className="text-[10px] text-gray-500">saving…</span>}
             {activeFile && (
@@ -508,6 +575,9 @@ export function CodeEditorPanel({
                 }
                 language={currentLang}
                 lessonId={lessonId}
+                workspaceDir={workspaceDir}
+                externalCommand={terminalCommand}
+                externalCommandNonce={terminalCommandNonce}
               />
             ) : (
               <div className="flex items-center justify-center h-full bg-[#0a0a0f] text-gray-600 text-sm">

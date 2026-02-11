@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 interface TerminalPanelProps {
   /** The compile/run command for this lesson */
@@ -28,6 +29,7 @@ export function TerminalPanel({
   mode,
   passed: initialPassed,
 }: TerminalPanelProps) {
+  const router = useRouter();
   const [lines, setLines] = useState<TerminalLine[]>([
     { type: "info", text: "Terminal ready. Type a command or paste output below." },
     { type: "info", text: `Compile: ${runCommand}` },
@@ -103,6 +105,7 @@ export function TerminalPanel({
             setDefenseSubmissionId(null);
             setDefensePrompt("");
             setPassed(true);
+            router.refresh();
             addLines(
               { type: "success", text: `✓ PASSED — ${data.message}` },
               { type: "prompt", text: "" }
@@ -233,11 +236,12 @@ export function TerminalPanel({
             setPassed(true);
             setDefenseSubmissionId(null);
             setDefensePrompt("");
+            router.refresh();
             addLines(
               { type: "success", text: `✓ PASSED — ${data.message}` },
               {
                 type: "success",
-                text: `  +${data.xp || 0} XP awarded`,
+                text: `  +${data.xpAwarded || 0} XP awarded`,
               },
               { type: "prompt", text: "" }
             );
@@ -263,7 +267,7 @@ export function TerminalPanel({
       // Anything else → treat as pasted output
       addLines({ type: "output", text: trimmed }, { type: "prompt", text: "" });
     },
-    [addLines, lines, runCommand, lessonId, partSlug, lessonSlug, mode, defenseSubmissionId, defensePrompt]
+    [addLines, lines, runCommand, lessonId, partSlug, lessonSlug, mode, defenseSubmissionId, defensePrompt, router]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

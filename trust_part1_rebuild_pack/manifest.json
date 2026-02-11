@@ -1,0 +1,51 @@
+{
+  "course": {
+    "id": "distributed-trust-engineer",
+    "title": "Distributed Trust Engineer"
+  },
+  "part": {
+    "id": "w01",
+    "slug": "w01-cli-logger-discipline",
+    "path": "parts/w01-cli-logger-discipline/part.md",
+    "lessons": [
+      {
+        "id": "w01-l01-overview",
+        "path": "parts/w01-cli-logger-discipline/lessons/01-boot-cli-contract.md",
+        "training_path": "parts/w01-cli-logger-discipline/training/01-boot.md"
+      },
+      {
+        "id": "w01-l02-overview",
+        "path": "parts/w01-cli-logger-discipline/lessons/02-router-safe-parse.md",
+        "training_path": "parts/w01-cli-logger-discipline/training/02-router.md"
+      },
+      {
+        "id": "w01-l03-overview",
+        "path": "parts/w01-cli-logger-discipline/lessons/03-exit-codes-signals.md",
+        "training_path": "parts/w01-cli-logger-discipline/training/03-exit-codes.md"
+      },
+      {
+        "id": "w01-l04-overview",
+        "path": "parts/w01-cli-logger-discipline/lessons/04-structured-logging.md",
+        "training_path": "parts/w01-cli-logger-discipline/training/04-logging.md"
+      },
+      {
+        "id": "w01-l05-overview",
+        "path": "parts/w01-cli-logger-discipline/lessons/05-trust-home-layout.md",
+        "training_path": "parts/w01-cli-logger-discipline/training/05-trust-home.md"
+      },
+      {
+        "id": "w01-l06-overview",
+        "path": "parts/w01-cli-logger-discipline/lessons/06-regression-harness.md",
+        "training_path": "parts/w01-cli-logger-discipline/training/06-harness.md"
+      }
+    ],
+    "boss": {
+      "id": "w01-quest",
+      "path": "parts/w01-cli-logger-discipline/quest.md"
+    },
+    "quiz": {
+      "id": "w01-quiz",
+      "path": "parts/w01-cli-logger-discipline/quiz.md"
+    }
+  }
+}

@@ -1,127 +1,120 @@
 ---
-id: w01-l06
-title: "Lesson 6 — Regression Harness: The Exact 12 Tests"
-order: 6
-duration_min: 120
-type: lesson
+id: w01-l06-overview
+title: "Regression Harness: 12 exact tests"
+order: 11
+duration: 120
+kind: lesson_overview
+part: w01
+---
+# Lesson 6 (6/6): Regression Harness — The 12 Tests
+
+## Goal
+
+Lock your Week 01 contract so it never rots.
+
+You will implement **exactly 12 regression tests**.
+They must run with one command and print clear PASS/FAIL output.
+
 ---
 
-# Lesson 6 (6/7): Regression Harness — The Exact 12 Tests
+## What you will build
 
-**Goal:** Lock every behavior from Lessons 1–5 with exactly 12 regression tests. One command runs all 12. If any fail, you know immediately.
+1) A test runner:
+- `starter/trustctl/tests/run.sh`
 
-**What you build:** A test runner (`make test` or `./tests/run_all.sh`) that executes 12 specific tests covering happy paths, error paths, env overrides, buffer guards, signal handling, and log correlation.
+2) A helper library:
+- `starter/trustctl/tests/helpers.sh`
 
-## Why it matters
+3) A make target:
+- `make test`
 
-- Long-lived tools die from silent regressions. You will change trustctl every week for 24 weeks. Without a harness, you'll break something in Week 8 and not notice until Week 15.
-- Each test checks one [MUST](https://datatracker.ietf.org/doc/html/rfc2119) rule from your CLI contract. If the test passes, the rule holds. If it fails, you broke a promise.
-- This is not unit testing. This is contract testing. You run the real binary and check real exit codes and real output.
+4) A UI hook (platform requirement):
+- Add a “Testing” option/button in the lesson UI that runs `make test` and shows output.
+- If “Testing” currently exists but does nothing, wire it to the command runner.
 
-## TRAINING SESSION
+---
 
-### Warmup (10 min)
-- Q: Why is contract testing (run the binary, check exit code) different from unit testing?
-- Q: If test #7 (oversize rejection) fails after a refactor, what probably happened?
-- Recall: List the 4 exit codes trustctl uses and what each means.
+## The exact 12 tests (mandatory)
 
-### Work
+All tests must run with `--testing` to avoid flaky output.
 
-**Task 1: Create the test runner**
+### Help + Version (2)
+1) `--help` prints `Usage:` and exits 0
+2) `--version` prints `trustctl` and exits 0
 
-1. Do this: Create a script or Makefile target that runs all tests in sequence. Each test prints PASS or FAIL with the test name. At the end, print a summary: `12/12 passed` or `N/12 passed, M failed`.
-2. How to test it:
-   ```
-   make test
-   ```
-3. Expected result: All 12 tests run. Summary at the end.
+### Usage + Routing (3)
+3) Missing command exits 64 and prints “missing command”
+4) Unknown command exits 64 and prints “unknown command”
+5) Missing value for `--trust-home` exits 64 and prints a clear error
 
-**Task 2: Implement the exact 12 tests**
+### Config precedence (3)
+6) default: `config show` prints `source=default`
+7) env: `TRUST_HOME=/tmp/t1` → prints `trust_home=/tmp/t1` and `source=env`
+8) flag wins: env set, plus `--trust-home /tmp/t2` → prints `/tmp/t2` and `source=flag`
 
-Here are the 12 tests. Implement every one:
+### Buffer safety (1)
+9) Any token >1024 bytes is rejected:
+   - error mentions `1024`
+   - exits 64
 
-| # | Test Name | What it checks | Expected |
-|---|-----------|---------------|----------|
-| 1 | `test_help` | `trustctl --help` | exit 0, output contains "usage" |
-| 2 | `test_version` | `trustctl --version` | exit 0, output contains version string |
-| 3 | `test_unknown_cmd` | `trustctl gibberish` | exit 64, output contains "unknown" |
-| 4 | `test_missing_args` | `trustctl hold` (no --seconds) | exit 64, output contains "required" or "missing" |
-| 5 | `test_env_override` | `TRUST_HOME=/tmp/t1 trustctl config show` | output shows `/tmp/t1` |
-| 6 | `test_flag_beats_env` | `TRUST_HOME=/tmp/t1 trustctl config show --trust-home /tmp/t2` | output shows `/tmp/t2` (flag wins) |
-| 7 | `test_oversize_reject` | Send a 2000-byte argument token | exit 64, output contains "1024" or "limit" |
-| 8 | `test_stdout_logs` | `trustctl config show` | stdout contains JSON with `"event":"cmd_start"` |
-| 9 | `test_file_logs` | `TRUST_HOME=/tmp/t1 trustctl config show` then check log file | `/tmp/t1/logs/trustctl.log` exists and contains events |
-| 10 | `test_request_id_override` | `trustctl config show --request-id TEST123` | log contains `"request_id":"TEST123"` |
-| 11 | `test_auto_request_id` | `trustctl config show` (no --request-id flag) | log contains `"request_id":"<something>"` (non-empty) |
-| 12 | `test_sigint_exit_130` | Send SIGINT to `trustctl hold --seconds 30` | exit 130 |
+### SIGINT contract (1)
+10) `trustctl wait` interrupted by Ctrl+C exits 130
 
-For each test:
-1. Do this: Write the test as a shell function or script block.
-2. How to test it: Run the individual test and confirm PASS.
-3. Expected result: PASS with correct exit code and output pattern.
+### Persistence layout (1)
+11) `trustctl --testing init` creates:
+   - `./.trustctl-test/logs`
+   - `./.trustctl-test/store`
+   - `./.trustctl-test/keys`
 
-**Task 3: Run the full suite twice**
+### Structured logs (1)
+12) `trustctl --testing config show` produces at least one structured log line on stderr:
+   - contains `level=`
+   - contains `event=`
 
-1. Do this: Run `make test` twice back-to-back. Both runs must produce 12/12.
-2. How to test it:
-   ```
-   make test && make test
-   ```
-3. Expected result: `12/12 passed` both times. Tests are repeatable. No state leaks between runs.
+---
 
-**Task 4: Use clean TRUST_HOME for isolation**
+## Practice
 
-1. Do this: Each test run creates a temporary TRUST_HOME (`mktemp -d`) and cleans up after. No test depends on previous state.
-2. How to test it: Run tests, then check `/tmp` for leftover directories.
-3. Expected result: No leftover temp directories. Each run starts clean.
+### Task 1 — Run the harness
 
-### Prove (15 min)
-- Run `make test`. Confirm 12/12.
-- Break one thing intentionally (remove the 1KB guard). Run tests. Confirm test #7 fails.
-- Fix it. Run tests again. Confirm 12/12.
-- Explain in 4 lines: Why does test #12 (SIGINT) need a background process + kill?
+How to test:
+```bash
+cd starter/trustctl
+make test
+```
 
-### Ship (5 min)
-- Submit: test runner script + all test files
-- Paste: full `make test` output showing 12/12 passed
+Expected result:
+- failing tests show which contract is broken
+- when complete: all 12 show PASS
+
+---
 
 ## Done when
-- `make test` runs 12 named tests.
-- All 12 pass on a clean run.
-- Tests are repeatable (no state leaks).
-- Each test uses isolated TRUST_HOME.
+
+- `make test` runs all 12 tests
+- they pass on a clean machine
+- tests are deterministic (no random output)
+
+---
 
 ## Common mistakes
-- Tests depend on user's home directory → Fix: Use `mktemp -d` for TRUST_HOME.
-- SIGINT test hangs → Fix: Run process in background, sleep 1s, send `kill -INT`, check exit code.
-- Overly strict string matching → Fix: Match patterns (contains "unknown"), not exact strings.
-- Tests pass but can't detect regressions → Fix: Intentionally break something and verify the test catches it.
-- Test runner exits on first failure → Fix: Run all 12, report summary at end.
 
-## Proof
-- Submit: test runner + test scripts
-- Paste: full `make test` output showing 12/12 passed
+- Tests that depend on local machine paths (use `--testing`)
+- Tests that don’t check exit codes
+- “Sleep and hope” tests for SIGINT (send the signal reliably)
 
-## Hero Visual
-
-```
-┌──────────────────────────────────────────────┐
-│            Regression Harness (12 tests)      │
-│                                              │
-│  #1  help          ✓   #7  oversize reject ✓│
-│  #2  version       ✓   #8  stdout logs     ✓│
-│  #3  unknown cmd   ✓   #9  file logs       ✓│
-│  #4  missing args  ✓   #10 request_id flag ✓│
-│  #5  env override  ✓   #11 auto request_id ✓│
-│  #6  flag beats env✓   #12 SIGINT → 130    ✓│
-│                                              │
-│  Result: 12/12 passed                        │
-└──────────────────────────────────────────────┘
-```
-
-### What you should notice
-- 12 tests = 12 promises. Each test maps to one MUST rule.
-- The harness is your safety net for 24 weeks of changes.
+---
 
 ## Future Lock
-Later in **Weeks 2–24**, every change to trustctl runs through this harness. If you add TCP commands in Week 2, you add tests. If you add crypto commands in Week 7, you add tests. The harness grows with the project. Without it, regressions hide for weeks.
+
+This harness is your safety net:
+- Week 2 will add networking commands.
+- Week 11 will stress the logger and exit codes while debugging distributed failures.
+
+---
+
+## Proof
+
+Paste the last lines of:
+- `make test`
+(showing `12/12 PASS`)

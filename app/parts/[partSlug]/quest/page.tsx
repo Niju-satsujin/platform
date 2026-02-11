@@ -39,7 +39,9 @@ export default async function PartQuestPage({
   const contentHtml = rawHtml.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/, "");
 
   /* ---- Starter code ---- */
-  const starter = parseStarterCode(part.quest.starterCode, part.quest.title);
+  const starter = parseStarterCode(part.quest.starterCode, part.quest.title, {
+    partSlug,
+  });
 
   return (
     <div className="lesson-page-root">

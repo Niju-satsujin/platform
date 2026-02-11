@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, getUserBySessionToken } from "@/lib/auth";
+
+function readToken(req: NextRequest): string | null {
+  return (
+    req.nextUrl.searchParams.get("t") ??
+    req.nextUrl.searchParams.get("sessionToken") ??
+    req.nextUrl.searchParams.get("session") ??
+    req.headers.get("x-session-token") ??
+    req.cookies.get("tsp_session")?.value ??
+    null
+  );
+}
 
 export async function GET(req: NextRequest) {
-  const user = await getCurrentUser();
+  const token = readToken(req);
+  const user = token
+    ? await getUserBySessionToken(token)
+    : await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
@@ -21,7 +35,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser();
+  const token = readToken(req);
+  const user = token
+    ? await getUserBySessionToken(token)
+    : await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();

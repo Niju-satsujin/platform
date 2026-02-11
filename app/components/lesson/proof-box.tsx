@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 interface ProofBoxProps {
   lessonId: string;
@@ -22,6 +23,7 @@ export function ProofBox({
   whatCounts,
   mode = "lesson",
 }: ProofBoxProps) {
+  const router = useRouter();
   const [text, setText] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -92,6 +94,7 @@ export function ProofBox({
         setDefenseSubmissionId(null);
         setDefensePrompt("");
         setDefenseResponse("");
+        router.refresh();
       } else {
         setDefenseSubmissionId(null);
       }
@@ -155,6 +158,7 @@ export function ProofBox({
         setDefenseSubmissionId(null);
         setDefensePrompt("");
         setDefenseResponse("");
+        router.refresh();
       } else if (data.status === "pending") {
         setDefensePrompt(data.message || defensePrompt);
       } else {

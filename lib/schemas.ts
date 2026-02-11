@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeContentKind, type ContentKind } from "./content-kind";
 
 export const ProofRulesSchema = z.object({
   mode: z.enum(["manual_or_regex", "regex", "manual"]).default("manual_or_regex"),
@@ -12,6 +13,7 @@ export const LessonFrontmatterSchema = z.object({
   part: z.string().optional(),
   title: z.string().min(1),
   order: z.coerce.number().int().min(1),
+  kind: z.string().optional(),
   type: z.string().optional(),
   duration_minutes: z.coerce.number().int().min(1).optional(),
   duration_min: z.coerce.number().int().min(1).optional(),
@@ -28,22 +30,28 @@ export const LessonFrontmatterSchema = z.object({
 }).transform((data) => ({
   ...data,
   duration_minutes: data.duration_minutes ?? data.duration_min ?? 10,
+  kind: normalizeContentKind(data.kind ?? data.type, "lesson"),
 }));
 
 export const PartFrontmatterSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   order: z.coerce.number().int().min(1),
+  kind: z.string().optional(),
   type: z.string().optional(),
   description: z.string().default(""),
   arc: z.string().optional(),
-});
+}).transform((data) => ({
+  ...data,
+  kind: normalizeContentKind(data.kind ?? data.type, "intro"),
+}));
 
 export const QuestFrontmatterSchema = z.object({
   id: z.string().min(1),
   part: z.string().optional(),
   title: z.string().min(1),
   order: z.coerce.number().int().min(1).optional(),
+  kind: z.string().optional(),
   type: z.string().optional(),
   duration_minutes: z.coerce.number().int().positive().optional(),
   duration_min: z.coerce.number().int().positive().optional(),
@@ -56,7 +64,10 @@ export const QuestFrontmatterSchema = z.object({
       patterns: z.array(z.string()).optional(),
     })
     .default({}),
-});
+}).transform((data) => ({
+  ...data,
+  kind: normalizeContentKind(data.kind ?? data.type, "boss"),
+}));
 
 export const ManifestPartSchema = z.object({
   id: z.string().min(1),
@@ -81,3 +92,4 @@ export type PartFrontmatter = z.infer<typeof PartFrontmatterSchema>;
 export type QuestFrontmatter = z.infer<typeof QuestFrontmatterSchema>;
 export type ManifestPart = z.infer<typeof ManifestPartSchema>;
 export type ContentManifest = z.infer<typeof ContentManifestSchema>;
+export type { ContentKind };
