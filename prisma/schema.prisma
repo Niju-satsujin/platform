@@ -401,12 +401,17 @@ model FlashcardSettings {
 // ── General Chat ─────────────────────────────────────────────
 
 model ChatMessage {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
   message   String
-  createdAt DateTime @default(now())
+  imageUrl  String?   // uploaded image or GIF URL
+  replyToId String?   // reply-to message ID
+  deletedAt DateTime? // soft delete
+  createdAt DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replyTo ChatMessage? @relation("ChatReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies ChatMessage[] @relation("ChatReplies")
 
   @@index([createdAt])
 }
