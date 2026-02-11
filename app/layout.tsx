@@ -35,9 +35,17 @@ export default async function RootLayout({
 
   let dueReviews = 0;
   let communityCount = 0;
+  let unreadDMs = 0;
 
   if (user) {
-    [dueReviews, communityCount] = await Promise.all([
+    // Get all conversation IDs for this user
+    const userConvs = await prisma.conversation.findMany({
+      where: { OR: [{ userAId: user.id }, { userBId: user.id }] },
+      select: { id: true },
+    });
+    const convIds = userConvs.map((c) => c.id);
+
+    [dueReviews, communityCount, unreadDMs] = await Promise.all([
       prisma.reviewItem.count({
         where: {
           userId: user.id,
@@ -51,6 +59,16 @@ export default async function RootLayout({
           xp: { gt: 0 },
         },
       }),
+      convIds.length > 0
+        ? prisma.directMessage.count({
+            where: {
+              conversationId: { in: convIds },
+              senderId: { not: user.id },
+              readAt: null,
+              deletedAt: null,
+            },
+          })
+        : Promise.resolve(0),
     ]);
   }
 
@@ -68,6 +86,7 @@ export default async function RootLayout({
           xp={xp}
           dueReviews={dueReviews}
           communityCount={communityCount}
+          unreadDMs={unreadDMs}
         />
 
         {/* ===== Main content below nav ===== */}

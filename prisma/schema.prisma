@@ -42,6 +42,9 @@ model User {
   flashcardSettings FlashcardSettings?
   progressEvents ProgressEvent[]
   chatMessages   ChatMessage[]
+  conversationsA Conversation[]   @relation("ConvUserA")
+  conversationsB Conversation[]   @relation("ConvUserB")
+  directMessages DirectMessage[]
 }
 
 model Session {
@@ -414,6 +417,43 @@ model ChatMessage {
   replies ChatMessage[] @relation("ChatReplies")
 
   @@index([createdAt])
+}
+
+// ── Private / Direct Messages ────────────────────────────────
+
+model Conversation {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  updatedAt DateTime @default(now()) // bumped on each new message
+  createdAt DateTime @default(now())
+
+  userA    User             @relation("ConvUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB    User             @relation("ConvUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages DirectMessage[]
+
+  @@unique([userAId, userBId])
+  @@index([updatedAt])
+}
+
+model DirectMessage {
+  id             String    @id @default(cuid())
+  conversationId String
+  senderId       String
+  message        String
+  imageUrl       String?
+  replyToId      String?
+  readAt         DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  conversation Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User            @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      DirectMessage?  @relation("DMReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      DirectMessage[] @relation("DMReplies")
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
 }
 
 // ── Progress Event Log ───────────────────────────────────────

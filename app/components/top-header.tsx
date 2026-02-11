@@ -15,6 +15,7 @@ interface TopHeaderProps {
   xp: number;
   dueReviews: number;
   communityCount: number;
+  unreadDMs: number;
 }
 
 interface NavItem {
@@ -30,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Flashcards", href: "/flashcards", matchPrefix: "/flashcards" },
   { label: "Training", href: "/training", matchPrefix: "/training" },
   { label: "Reviews", href: "/reviews", matchPrefix: "/reviews" },
+  { label: "Messages", href: "/messages", matchPrefix: "/messages" },
   { label: "Community", href: "/community", matchPrefix: "/community" },
   { label: "Leaderboard", href: "/leaderboard", matchPrefix: "/leaderboard" },
 ];
@@ -42,6 +44,7 @@ export default function TopHeader({
   xp,
   dueReviews,
   communityCount,
+  unreadDMs,
 }: TopHeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -198,6 +201,20 @@ export default function TopHeader({
                 {dueReviews > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-red-500 text-[10px] leading-4 text-white px-1 text-center font-bold">
                     {Math.min(dueReviews, 99)}
+                  </span>
+                )}
+              </Link>
+
+              <Link
+                href="/messages"
+                className="relative h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-gray-900 border border-gray-700 hover:border-blue-400/70 transition-colors flex items-center justify-center text-gray-300"
+                title="Messages"
+                suppressHydrationWarning
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" suppressHydrationWarning><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                {unreadDMs > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-blue-500 text-[10px] leading-4 text-white px-1 text-center font-bold">
+                    {Math.min(unreadDMs, 99)}
                   </span>
                 )}
               </Link>

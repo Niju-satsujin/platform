@@ -51,6 +51,12 @@ export default async function CommunityPage() {
               Open Leaderboard
             </Link>
             <Link
+              href="/messages"
+              className="px-4 py-2 rounded-lg border border-blue-500/30 bg-blue-500/10 text-sm text-blue-400 hover:bg-blue-500/20 transition-colors text-center"
+            >
+              💬 Private Messages
+            </Link>
+            <Link
               href="/parts"
               className="px-4 py-2 rounded-lg border border-gray-700 text-sm text-gray-300 hover:text-gray-100 hover:bg-gray-800 transition-colors text-center"
             >
