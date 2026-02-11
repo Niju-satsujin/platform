@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -7,15 +7,16 @@ import { SessionGuard } from "@/app/components/session-guard";
 import { AIMonitorWrapper } from "@/app/components/ai-monitor-wrapper";
 import "./globals.css";
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+};
+
 export const metadata: Metadata = {
   title: "Trust Systems Platform",
   description: "Master systems programming through guided lessons, quests, and spaced-repetition reviews.",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 5,
-    viewportFit: "cover",
-  },
   other: {
     "darkreader-lock": "",
   },
@@ -38,38 +39,42 @@ export default async function RootLayout({
   let unreadDMs = 0;
 
   if (user) {
-    // Get all conversation IDs for this user
-    const userConvs = await prisma.conversation.findMany({
-      where: { OR: [{ userAId: user.id }, { userBId: user.id }] },
-      select: { id: true },
-    });
-    const convIds = userConvs.map((c) => c.id);
+    try {
+      // Get all conversation IDs for this user
+      const userConvs = await prisma.conversation.findMany({
+        where: { OR: [{ userAId: user.id }, { userBId: user.id }] },
+        select: { id: true },
+      });
+      const convIds = userConvs.map((c) => c.id);
 
-    [dueReviews, communityCount, unreadDMs] = await Promise.all([
-      prisma.reviewItem.count({
-        where: {
-          userId: user.id,
-          completedAt: null,
-          dueAt: { lte: new Date() },
-        },
-      }),
-      prisma.user.count({
-        where: {
-          passwordHash: { not: "" },
-          xp: { gt: 0 },
-        },
-      }),
-      convIds.length > 0
-        ? prisma.directMessage.count({
-            where: {
-              conversationId: { in: convIds },
-              senderId: { not: user.id },
-              readAt: null,
-              deletedAt: null,
-            },
-          })
-        : Promise.resolve(0),
-    ]);
+      [dueReviews, communityCount, unreadDMs] = await Promise.all([
+        prisma.reviewItem.count({
+          where: {
+            userId: user.id,
+            completedAt: null,
+            dueAt: { lte: new Date() },
+          },
+        }),
+        prisma.user.count({
+          where: {
+            passwordHash: { not: "" },
+            xp: { gt: 0 },
+          },
+        }),
+        convIds.length > 0
+          ? prisma.directMessage.count({
+              where: {
+                conversationId: { in: convIds },
+                senderId: { not: user.id },
+                readAt: null,
+                deletedAt: null,
+              },
+            })
+          : Promise.resolve(0),
+      ]);
+    } catch (e) {
+      console.error("Layout DB query failed (DB may be unreachable):", e);
+    }
   }
 
   return (

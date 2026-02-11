@@ -34,9 +34,16 @@ export default async function Home({
   }
   if (!user) redirect("/login");
 
-  const progress = await getProgressForUserId(user.id);
-  const totalParts = await prisma.part.count();
-  const totalLessons = await prisma.lesson.count();
+  let progress = { totalCompleted: 0, streak: 0, longestStreak: 0, dueReviews: 0 };
+  let totalParts = 0;
+  let totalLessons = 0;
+  try {
+    progress = await getProgressForUserId(user.id);
+    totalParts = await prisma.part.count();
+    totalLessons = await prisma.lesson.count();
+  } catch (e) {
+    console.error("Home page DB query failed (DB may be unreachable):", e);
+  }
   const overallPct = totalLessons > 0
     ? Math.round((progress.totalCompleted / totalLessons) * 100)
     : 0;
