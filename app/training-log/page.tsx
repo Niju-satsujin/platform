@@ -43,7 +43,7 @@ export default async function TrainingLogPage() {
   const currentWeek = Math.max(1, ...logs.map((l) => l.weekNumber));
 
   return (
-    <div className="px-6 py-6 max-w-4xl mx-auto animate-float-up">
+    <div className="px-3 sm:px-6 py-4 sm:py-6 max-w-4xl mx-auto animate-float-up">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
@@ -59,7 +59,7 @@ export default async function TrainingLogPage() {
       </div>
 
       {/* KPI Dashboard */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-8">
         <div className="game-card p-4 text-center">
           <div
             className="text-3xl font-bold mb-1"

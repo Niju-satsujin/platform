@@ -45,7 +45,7 @@ export default async function ReviewsPage() {
   });
 
   return (
-    <div className="px-6 py-6 max-w-6xl mx-auto animate-float-up">
+    <div className="px-3 sm:px-6 py-4 sm:py-6 max-w-6xl mx-auto animate-float-up">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
@@ -58,7 +58,7 @@ export default async function ReviewsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-8">
         <div className="game-card p-4 text-center stat-card">
           <div className="w-10 h-10 rounded-xl bg-red-950 flex items-center justify-center mx-auto mb-2">
             <Image src="/img/frozen-flame.png" alt="Due" width={24} height={24} />
@@ -93,7 +93,7 @@ export default async function ReviewsPage() {
             {dueReviews.map((review) => (
               <div
                 key={review.id}
-                className="game-card flex items-center gap-4 p-4 group border-red-500/20"
+                className="game-card flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-4 group border-red-500/20"
               >
                 <div className="w-10 h-10 rounded-xl bg-red-950 text-red-400 flex items-center justify-center flex-shrink-0">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

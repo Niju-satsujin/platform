@@ -62,7 +62,7 @@ export default function UserCard({ user }: { user: ProfileUser }) {
       </div>
 
       {/* Quick stats row */}
-      <div className="grid grid-cols-3 gap-3 w-full pt-2 border-t border-gray-700/50">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full pt-2 border-t border-gray-700/50">
         <StatMini label="Rank" value={`#${user.rank}`} />
         <StatMini label="Streak" value={`${user.streak}d`} icon="🔥" />
         <StatMini label="Joined" value={joinedStr} />

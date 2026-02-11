@@ -136,7 +136,7 @@ export function FlashcardAnalytics() {
       {/* 7d vs 30d comparison */}
       <div className="game-card p-5">
         <h3 className="text-sm font-semibold text-gray-300 mb-3">Period Comparison</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-green-400">{data.retentionRate7d}%</div>
             <div className="text-xs text-gray-500">7-Day Retention</div>

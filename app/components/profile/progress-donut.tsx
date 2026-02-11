@@ -82,7 +82,7 @@ export default function ProgressDonut({ stats }: { stats: ProfileStats }) {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-gray-700/50">
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mt-4 pt-3 border-t border-gray-700/50">
         <MiniStat label="Submissions" value={stats.submissions} />
         <MiniStat label="Pass Rate" value={`${stats.passRate}%`} />
         <MiniStat label="Parts Done" value={stats.partsCompleted} />

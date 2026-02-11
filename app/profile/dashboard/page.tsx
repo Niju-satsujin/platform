@@ -69,7 +69,7 @@ export default function ProfileDashboard() {
   }
 
   return (
-    <div className="px-6 py-8 max-w-6xl mx-auto animate-float-up">
+    <div className="px-3 sm:px-6 py-4 sm:py-8 max-w-6xl mx-auto animate-float-up">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

@@ -95,19 +95,34 @@ export default function TopHeader({
         </Link>
 
         <details className="lg:hidden relative">
-          <summary className="list-none h-8 px-2 rounded-md border border-gray-700 bg-gray-900/70 text-xs text-gray-200 flex items-center cursor-pointer">
-            Menu
+          <summary className="list-none h-10 w-10 rounded-md border border-gray-700 bg-gray-900/70 text-sm text-gray-200 flex items-center justify-center cursor-pointer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
           </summary>
-          <div className="absolute top-10 left-0 w-44 p-2 rounded-xl border border-gray-700 bg-gray-900 shadow-xl">
+          <div className="absolute top-12 left-0 w-52 p-2 rounded-xl border border-gray-700 bg-gray-900 shadow-xl z-50">
             {NAV_ITEMS.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="block px-2 py-1.5 rounded-md text-xs text-gray-250 hover:bg-gray-800 hover:text-white"
+                className="block px-3 py-2.5 rounded-md text-sm text-gray-250 hover:bg-gray-800 hover:text-white"
               >
                 {item.label}
               </Link>
             ))}
+            {/* Mobile search */}
+            <form
+              onSubmit={onSearchSubmit}
+              className="mt-2 pt-2 border-t border-gray-700"
+            >
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search..."
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-200 placeholder:text-gray-500 outline-none focus:border-yellow-500/50"
+                aria-label="Search"
+              />
+            </form>
           </div>
         </details>
 
@@ -175,7 +190,7 @@ export default function TopHeader({
             <>
               <Link
                 href="/reviews"
-                className="relative h-8 w-8 rounded-full bg-gray-900 border border-gray-700 hover:border-yellow-500/70 transition-colors flex items-center justify-center"
+                className="relative h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-gray-900 border border-gray-700 hover:border-yellow-500/70 transition-colors flex items-center justify-center"
                 title="Reviews"
                 suppressHydrationWarning
               >
@@ -189,7 +204,7 @@ export default function TopHeader({
 
               <Link
                 href="/community"
-                className="relative h-8 w-8 rounded-full bg-gray-900 border border-gray-700 hover:border-blue-400/70 transition-colors flex items-center justify-center"
+                className="relative h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-gray-900 border border-gray-700 hover:border-blue-400/70 transition-colors flex items-center justify-center"
                 title="Community"
                 suppressHydrationWarning
               >
@@ -218,7 +233,7 @@ export default function TopHeader({
 
               <Link
                 href="/profile"
-                className="h-8 w-8 rounded-full bg-gray-900 border border-gray-700 hover:border-yellow-500/70 transition-colors flex items-center justify-center text-gray-300"
+                className="h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-gray-900 border border-gray-700 hover:border-yellow-500/70 transition-colors flex items-center justify-center text-gray-300"
                 title="Settings"
                 suppressHydrationWarning
               >
@@ -230,7 +245,7 @@ export default function TopHeader({
 
               <Link
                 href="/profile/dashboard"
-                className="h-8 w-8 rounded-full overflow-hidden border border-gray-700 hover:border-yellow-500 transition-colors"
+                className="h-10 w-10 sm:h-8 sm:w-8 rounded-full overflow-hidden border border-gray-700 hover:border-yellow-500 transition-colors"
                 title={displayName}
                 suppressHydrationWarning
               >
@@ -248,11 +263,11 @@ export default function TopHeader({
             <>
               <Link
                 href="/login"
-                className="px-3 py-1 text-xs font-semibold text-gray-250 hover:text-white transition-colors"
+                className="px-3 py-2 text-sm sm:text-xs sm:py-1 font-semibold text-gray-250 hover:text-white transition-colors"
               >
                 Log In
               </Link>
-              <Link href="/register" className="btn-primary !py-1 !text-xs">
+              <Link href="/register" className="btn-primary !py-2 sm:!py-1 !text-sm sm:!text-xs">
                 Sign Up
               </Link>
             </>

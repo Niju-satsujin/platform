@@ -77,7 +77,7 @@ export default async function PartPage({ params }: { params: Promise<{ partSlug:
   const totalXp = totalLessons * 100 + (part.quest ? 250 : 0);
 
   return (
-    <div className="px-6 py-6 max-w-6xl mx-auto animate-float-up">
+    <div className="px-3 sm:px-6 py-4 sm:py-6 max-w-6xl mx-auto animate-float-up">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-gray-500 mb-6">
         <Link href="/parts" className="hover:text-yellow-500 transition-colors flex items-center gap-1">
@@ -107,7 +107,7 @@ export default async function PartPage({ params }: { params: Promise<{ partSlug:
           <p className="text-gray-500 text-sm mb-5 max-w-lg">{part.description}</p>
 
           {/* XP + Progress */}
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div className="bg-gray-900 rounded-xl p-3 border border-gray-700">
               <p className="text-xs text-gray-500 mb-1">Lessons Completed</p>
               <p className="text-xl font-bold text-gray-100">{completedCount}<span className="text-sm text-gray-500 font-normal">/{totalLessons}</span></p>

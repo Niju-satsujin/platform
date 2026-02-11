@@ -29,7 +29,7 @@ export default async function TrainingPage() {
   ]);
 
   return (
-    <div className="px-6 py-6 max-w-4xl mx-auto animate-float-up">
+    <div className="px-3 sm:px-6 py-4 sm:py-6 max-w-4xl mx-auto animate-float-up">
       <TrainingDashboard
         userId={user.id}
         level={user.level}

@@ -31,7 +31,7 @@ export default async function FlashcardsPage() {
   }
 
   return (
-    <div className="px-6 py-6 max-w-6xl mx-auto animate-float-up">
+    <div className="px-3 sm:px-6 py-4 sm:py-6 max-w-6xl mx-auto animate-float-up">
       <div className="mb-6">
         <span className="badge badge-blue">FLASHCARDS</span>
         <h1 className="text-2xl font-bold text-gray-100 mt-2">

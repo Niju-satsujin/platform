@@ -55,10 +55,10 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="px-6 py-6 max-w-6xl mx-auto flex items-center justify-center min-h-[calc(100vh-var(--top-nav-bar-height)-4px)]">
+    <div className="px-4 sm:px-6 py-6 max-w-6xl mx-auto flex items-center justify-center min-h-[calc(100vh-var(--top-nav-bar-height)-4px)]">
       <div className="w-full max-w-md animate-float-up">
         {/* Logo header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6 sm:mb-8">
           <Image
             src="/img/platform-logo.svg"
             alt="Trust Systems"
@@ -88,7 +88,7 @@ export default function RegisterPage() {
               id="username"
               name="username"
               type="text"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-sm"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-base sm:text-sm"
               placeholder="e.g. trust_sage"
               required
               minLength={3}
@@ -108,7 +108,7 @@ export default function RegisterPage() {
               id="displayName"
               name="displayName"
               type="text"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-sm"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-base sm:text-sm"
               placeholder="Your display name"
               autoComplete="name"
             />
@@ -122,7 +122,7 @@ export default function RegisterPage() {
               id="password"
               name="password"
               type="password"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-sm"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-base sm:text-sm"
               placeholder="Min 6 characters"
               required
               minLength={6}
@@ -138,7 +138,7 @@ export default function RegisterPage() {
               id="confirmPassword"
               name="confirmPassword"
               type="password"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-sm"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 transition-all text-base sm:text-sm"
               placeholder="••••••••"
               required
               minLength={6}

@@ -90,7 +90,7 @@ export default async function PartsPage() {
   }));
 
   return (
-    <div className="px-6 py-6 max-w-6xl mx-auto animate-float-up">
+    <div className="px-3 sm:px-6 py-4 sm:py-6 max-w-6xl mx-auto animate-float-up">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">

@@ -398,6 +398,36 @@ h2::first-letter {
   font-feature-settings: "ss01";
 }
 
+/* ============ Mobile-first responsive fixes ============ */
+
+/* Prevent iOS Safari from zooming on input focus (needs ≥16px) */
+@media screen and (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Minimum touch targets on mobile */
+@media (pointer: coarse) {
+  button, a, [role="button"], summary {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Except inline text links and tiny icon buttons */
+  a:not(.btn-primary):not(.btn-secondary):not(.game-card) {
+    min-height: unset;
+    min-width: unset;
+  }
+}
+
+/* Safe area insets for notched phones */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
 /* ============ Scrollbar — matches Boot.dev dark ============ */
 ::-webkit-scrollbar {
   width: 6px;
@@ -825,7 +855,7 @@ h2::first-letter {
 .prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
 .prose ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
 .prose li { margin-bottom: 0.375rem; color: var(--tw-prose-body); }
-.prose table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.875rem; }
+.prose table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.875rem; display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .prose th {
   border-bottom: 2px solid var(--gray-700);
   padding: 0.625rem;
@@ -1066,11 +1096,18 @@ h2::first-letter {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
   color: var(--gray-400);
   transition: color 0.15s, background 0.15s;
+}
+
+@media (min-width: 768px) {
+  .topbar-icon-btn {
+    width: 32px;
+    height: 32px;
+  }
 }
 .topbar-icon-btn:hover {
   color: var(--yellow-500);
@@ -1164,13 +1201,21 @@ h2::first-letter {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   color: var(--gray-300);
   border: 1px solid var(--gray-700);
   transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
+
+@media (min-width: 768px) {
+  .topbar-nav-btn {
+    width: 28px;
+    height: 28px;
+  }
+}
+
 .topbar-nav-btn:hover {
   color: var(--yellow-500);
   background: var(--gray-750);
@@ -1185,9 +1230,17 @@ h2::first-letter {
 /* Split pane for lesson editor */
 .split-pane {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0;
-  height: calc(100vh - var(--top-nav-bar-height));
+  height: auto;
+  min-height: calc(100dvh - var(--top-nav-bar-height));
+}
+
+@media (min-width: 768px) {
+  .split-pane {
+    grid-template-columns: 1fr 1fr;
+    height: calc(100dvh - var(--top-nav-bar-height));
+  }
 }
 
 .split-pane-content {
@@ -1274,9 +1327,9 @@ h2::first-letter {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
+  padding: 8px 12px;
   border-radius: 6px;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--gray-300);
   background: var(--gray-800);
@@ -1284,6 +1337,13 @@ h2::first-letter {
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .editor-btn {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+  }
 }
 
 .editor-btn:hover {

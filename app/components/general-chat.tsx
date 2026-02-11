@@ -319,7 +319,7 @@ export default function GeneralChat() {
   }
 
   return (
-    <div className="game-card flex flex-col" style={{ height: "400px" }}>
+    <div className="game-card flex flex-col h-[300px] sm:h-[400px]">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between shrink-0">
         <h2 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
@@ -484,7 +484,7 @@ export default function GeneralChat() {
             onChange={(e) => setInput(e.target.value)}
             placeholder={replyTo ? `Reply to ${replyTo.user.displayName || replyTo.user.username}…` : "Type a message…"}
             maxLength={1000}
-            className="flex-1 bg-gray-900/70 border border-gray-700 rounded-full px-4 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-yellow-500/50 focus:outline-none transition-colors"
+            className="flex-1 bg-gray-900/70 border border-gray-700 rounded-full px-4 py-2 text-base sm:text-sm text-gray-200 placeholder-gray-600 focus:border-yellow-500/50 focus:outline-none transition-colors"
           />
 
           <button

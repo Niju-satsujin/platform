@@ -49,7 +49,7 @@ export default async function Home({
   const xpInLevel = xp % xpPerLevel;
 
   return (
-    <div className="px-6 py-6 max-w-7xl mx-auto flex flex-col gap-5 animate-float-up">
+    <div className="px-3 sm:px-6 py-4 sm:py-6 max-w-7xl mx-auto flex flex-col gap-4 sm:gap-5 animate-float-up">
       {/* ── Community Bar (top) — online/offline users ── */}
       <CommunityBar />
 
@@ -58,23 +58,23 @@ export default async function Home({
         {/* ── Left: Dashboard content ── */}
         <div className="flex flex-col gap-5">
           {/* Hero */}
-          <section className="relative overflow-hidden rounded-xl bg-image-blue-gray p-8">
-            <div className="relative flex items-center gap-6">
+          <section className="relative overflow-hidden rounded-xl bg-image-blue-gray p-5 sm:p-8">
+            <div className="relative flex items-center gap-4 sm:gap-6">
               <Image
                 src="/img/ballanfloating.webp"
                 alt="Boots"
                 width={120}
                 height={120}
-                className="hidden sm:block w-24 h-24 drop-shadow-2xl"
+                className="hidden sm:block w-20 sm:w-24 h-20 sm:h-24 drop-shadow-2xl"
               />
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="badge badge-yellow">⚡ C++ SYSTEMS</span>
                 </div>
-                <h1 className="text-3xl mb-1">
+                <h1 className="text-xl sm:text-3xl mb-1">
                   Welcome back, <span className="text-yellow-300">{displayName}</span>
                 </h1>
-                <p className="text-gray-400 text-sm max-w-lg mb-5">
+                <p className="text-gray-400 text-xs sm:text-sm max-w-lg mb-4 sm:mb-5">
                   Master C++ systems programming through guided micro-lessons,
                   hands-on quests, and spaced-repetition reviews.
                 </p>
@@ -86,7 +86,7 @@ export default async function Home({
           </section>
 
           {/* Stats row */}
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             {/* Progress ring */}
             <div className="game-card p-5 flex flex-col items-center justify-center stat-card">
               <div className="relative mb-3">
@@ -167,7 +167,7 @@ export default async function Home({
           </div>
 
           {/* Quick Actions */}
-          <section className="grid md:grid-cols-3 gap-3">
+          <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <QuickAction href="/parts" title="Learning Path" desc="Browse all courses" icon="/img/c-128.png" />
             <QuickAction href="/reviews" title="Reviews" desc={`${progress.dueReviews} due now`} icon="/img/ember-on.png" />
             <QuickAction href="/progress" title="Analytics" desc="Track your progress" icon="/img/league_gold.png" />

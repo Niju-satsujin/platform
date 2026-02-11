@@ -51,7 +51,7 @@ export default async function SkillTreePage() {
   const userSkillsForClient = Array.from(userSkillsMap.values());
 
   return (
-    <main className="w-full h-screen bg-gray-950">
+    <main className="w-full h-[calc(100dvh-var(--top-nav-bar-height))] bg-gray-950 overflow-auto">
       <SkillTreeWrapper
         skills={skillsForClient}
         userSkills={userSkillsForClient}

@@ -10,6 +10,12 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Trust Systems Platform",
   description: "Master systems programming through guided lessons, quests, and spaced-repetition reviews.",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 5,
+    viewportFit: "cover",
+  },
   other: {
     "darkreader-lock": "",
   },

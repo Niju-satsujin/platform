@@ -25,7 +25,7 @@ export default async function LeaderboardPage() {
   });
 
   return (
-    <div className="px-6 py-6 max-w-6xl mx-auto animate-float-up">
+    <div className="px-3 sm:px-6 py-4 sm:py-6 max-w-6xl mx-auto animate-float-up">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
@@ -39,7 +39,7 @@ export default async function LeaderboardPage() {
 
       {/* Top 3 podium */}
       {users.length >= 3 && (
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-8">
           {/* 2nd place */}
           <PodiumCard user={users[1]} rank={2} color="gray" />
           {/* 1st place */}
@@ -51,8 +51,8 @@ export default async function LeaderboardPage() {
 
       {/* Full rankings table */}
       <div className="game-card overflow-hidden">
-        {/* Table header */}
-        <div className="grid grid-cols-[60px_1fr_100px_100px_80px_80px] gap-2 px-4 py-3 border-b border-gray-700 text-xs font-semibold text-gray-500 uppercase tracking-widest">
+        {/* Table header — hidden on mobile */}
+        <div className="hidden md:grid grid-cols-[60px_1fr_100px_100px_80px_80px] gap-2 px-4 py-3 border-b border-gray-700 text-xs font-semibold text-gray-500 uppercase tracking-widest">
           <span>Rank</span>
           <span>Player</span>
           <span className="text-center">Level</span>
@@ -69,12 +69,12 @@ export default async function LeaderboardPage() {
             return (
               <div
                 key={user.id}
-                className={`grid grid-cols-[60px_1fr_100px_100px_80px_80px] gap-2 px-4 py-3 items-center border-b border-gray-800 transition-colors hover:bg-gray-800/50 ${
+                className={`flex flex-wrap md:grid md:grid-cols-[60px_1fr_100px_100px_80px_80px] gap-x-2 gap-y-1 px-4 py-3 items-center border-b border-gray-800 transition-colors hover:bg-gray-800/50 ${
                   rank <= 3 ? "bg-yellow-950/10" : ""
                 }`}
               >
                 {/* Rank */}
-                <div className="flex items-center">
+                <div className="flex items-center shrink-0">
                   {rank === 1 ? (
                     <span className="text-yellow-500 text-lg font-extrabold">🥇</span>
                   ) : rank === 2 ? (
@@ -87,7 +87,7 @@ export default async function LeaderboardPage() {
                 </div>
 
                 {/* Player */}
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-700 flex-shrink-0">
                     <Avatar
                       src={user.profileImage || "/img/new_boots_profile.webp"}
@@ -107,16 +107,16 @@ export default async function LeaderboardPage() {
                 </div>
 
                 {/* Level */}
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-1">
+                <div className="md:text-center">
+                  <div className="flex items-center md:justify-center gap-1">
                     <Image src="/img/crown.png" alt="Level" width={14} height={14} className="h-3.5 w-3.5" />
                     <span className="text-sm font-bold text-yellow-500">{user.level}</span>
                   </div>
                 </div>
 
                 {/* XP */}
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-1">
+                <div className="md:text-center">
+                  <div className="flex items-center md:justify-center gap-1">
                     <Image src="/img/xp-potion.webp" alt="XP" width={14} height={14} className="h-3.5 w-3.5" />
                     <span className="text-sm font-bold text-yellow-300">
                       {user.xp.toLocaleString()}
@@ -125,16 +125,16 @@ export default async function LeaderboardPage() {
                 </div>
 
                 {/* Gems */}
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-1">
+                <div className="md:text-center">
+                  <div className="flex items-center md:justify-center gap-1">
                     <Image src="/img/gems-glow-128.webp" alt="Gems" width={14} height={14} className="h-3.5 w-3.5" />
                     <span className="text-sm font-bold text-blue-300">{user.gems}</span>
                   </div>
                 </div>
 
                 {/* Streak */}
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-1">
+                <div className="md:text-center">
+                  <div className="flex items-center md:justify-center gap-1">
                     <Image
                       src={user.currentStreak > 0 ? "/img/streak-on-icon.png" : "/img/streak-off-icon.png"}
                       alt="Streak"

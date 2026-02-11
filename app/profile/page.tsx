@@ -265,14 +265,14 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="px-6 py-6 max-w-2xl mx-auto flex items-center justify-center min-h-[50vh]">
+      <div className="px-4 sm:px-6 py-6 max-w-2xl mx-auto flex items-center justify-center min-h-[50vh]">
         <p className="text-gray-500 text-sm">Loading profile…</p>
       </div>
     );
   }
 
   return (
-    <div className="px-6 py-6 max-w-2xl mx-auto animate-float-up">
+    <div className="px-4 sm:px-6 py-4 sm:py-6 max-w-2xl mx-auto animate-float-up">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
@@ -440,7 +440,7 @@ export default function ProfilePage() {
           <p className="text-xs text-gray-500 mb-3">
             Choose your preferred code editor for lessons and quests.
           </p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setEditorMode("vscode")}
