@@ -19,15 +19,12 @@ export default function DrillPage() {
   const searchParams = useSearchParams();
   const drillId = typeof params?.id === "string" ? params.id : "";
   const [drill, setDrill] = useState<Drill | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!drillId);
   const [hintLevel, setHintLevel] = useState(0);
   const [completed, setCompleted] = useState(false);
 
   useEffect(() => {
-    if (!drillId) {
-      setLoading(false);
-      return;
-    }
+    if (!drillId) return;
     fetch(withSessionToken("/api/training", searchParams), { credentials: "include" })
       .then(async (r) => {
         const data = (await r.json().catch(() => null)) as {

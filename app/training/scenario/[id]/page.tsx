@@ -18,16 +18,13 @@ export default function ScenarioPage() {
   const searchParams = useSearchParams();
   const scenarioId = typeof params?.id === "string" ? params.id : "";
   const [scenario, setScenario] = useState<DebugScenario | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!scenarioId);
   const [answer, setAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
 
   useEffect(() => {
-    if (!scenarioId) {
-      setLoading(false);
-      return;
-    }
+    if (!scenarioId) return;
     fetch(withSessionToken("/api/training", searchParams), { credentials: "include" })
       .then(async (r) => {
         const data = (await r.json().catch(() => null)) as {

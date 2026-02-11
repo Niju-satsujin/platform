@@ -24,7 +24,7 @@ export default function MiniLeaderboard() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    const cancelled = { current: false };
 
     async function fetchLeaderboard() {
       try {
@@ -35,7 +35,7 @@ export default function MiniLeaderboard() {
         const res = await fetch(url, { credentials: "include" });
         if (!res.ok) return;
         const json = await res.json();
-        if (!cancelled) {
+        if (!cancelled.current) {
           setUsers(json.users);
           setCurrentUserId(json.currentUserId ?? null);
         }
@@ -45,6 +45,7 @@ export default function MiniLeaderboard() {
     }
 
     fetchLeaderboard();
+    return () => { cancelled.current = true; };
   }, []);
 
   const medals = ["🥇", "🥈", "🥉"];
