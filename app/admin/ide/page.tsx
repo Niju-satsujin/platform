@@ -8,7 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import dynamic from "next/dynamic";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Panel, Group, Separator } from "react-resizable-panels";
 
 /* ── Monaco (client-only) ── */
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
@@ -501,7 +501,7 @@ export default function IDEPage() {
         {saving && <span className="text-yellow-400 text-xs animate-pulse">Saving…</span>}
       </div>
 
-      <PanelGroup direction="horizontal" className="flex-1">
+      <Group direction="horizontal" className="flex-1">
         {/* ── File Explorer ── */}
         <Panel defaultSize={20} minSize={12} maxSize={40}>
           <div className="h-full bg-[#1a1b26] border-r border-[#232433] flex flex-col">
@@ -545,11 +545,11 @@ export default function IDEPage() {
           </div>
         </Panel>
 
-        <PanelResizeHandle className="w-[3px] bg-[#232433] hover:bg-blue-600 transition-colors cursor-col-resize" />
+        <Separator className="w-[3px] bg-[#232433] hover:bg-blue-600 transition-colors cursor-col-resize" />
 
         {/* ── Editor + Terminal ── */}
         <Panel defaultSize={80}>
-          <PanelGroup direction="vertical">
+          <Group direction="vertical">
             <Panel defaultSize={65} minSize={20}>
               <div className="h-full flex flex-col bg-[#1a1b26]">
                 {/* Tabs */}
@@ -591,7 +591,7 @@ export default function IDEPage() {
               </div>
             </Panel>
 
-            <PanelResizeHandle className="h-[3px] bg-[#232433] hover:bg-blue-600 transition-colors cursor-row-resize" />
+            <Separator className="h-[3px] bg-[#232433] hover:bg-blue-600 transition-colors cursor-row-resize" />
 
             <Panel defaultSize={35} minSize={10}>
               <div className="h-full flex flex-col bg-[#1a1b26]">
@@ -603,9 +603,9 @@ export default function IDEPage() {
                 <div ref={termRef} className="flex-1 px-1" />
               </div>
             </Panel>
-          </PanelGroup>
+          </Group>
         </Panel>
-      </PanelGroup>
+      </Group>
 
       {/* ── Context Menu ── */}
       {contextMenu && (
