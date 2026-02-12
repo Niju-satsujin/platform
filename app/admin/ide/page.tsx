@@ -500,7 +500,7 @@ export default function IDEPage() {
         {saving && <span className="text-yellow-400 text-xs animate-pulse">Saving…</span>}
       </div>
 
-      <Group direction="horizontal" className="flex-1">
+      <Group orientation="horizontal" className="flex-1" id="ide-main">
         {/* ── File Explorer ── */}
         <Panel defaultSize={20} minSize={12} maxSize={40}>
           <div className="h-full bg-[#1a1b26] border-r border-[#232433] flex flex-col">
@@ -548,7 +548,7 @@ export default function IDEPage() {
 
         {/* ── Editor + Terminal ── */}
         <Panel defaultSize={80}>
-          <Group direction="vertical">
+          <Group orientation="vertical" id="ide-editor-terminal">
             <Panel defaultSize={65} minSize={20}>
               <div className="h-full flex flex-col bg-[#1a1b26]">
                 {/* Tabs */}
