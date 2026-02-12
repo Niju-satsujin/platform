@@ -210,7 +210,23 @@ async function handleFS(msg: Record<string, unknown>, ws: WebSocket) {
 /* ── WebSocket connections ── */
 wss.on("connection", (ws: WebSocket, req) => {
   const url = new URL(req.url || "/", `http://localhost:${PORT}`);
-  const initialCwd = url.searchParams.get("cwd") || os.homedir();
+  let initialCwd = url.searchParams.get("cwd") || os.homedir();
+
+  // Resolve Vercel-style /var/task paths to the local project directory.
+  // On Vercel, process.cwd() is /var/task, but locally the project lives
+  // at the directory where this server is running.
+  const PROJECT_ROOT = pathMod.resolve(pathMod.dirname(new URL(import.meta.url).pathname), "..");
+  if (initialCwd.startsWith("/var/task/")) {
+    initialCwd = pathMod.join(PROJECT_ROOT, initialCwd.slice("/var/task/".length));
+  } else if (initialCwd === "/var/task") {
+    initialCwd = PROJECT_ROOT;
+  }
+
+  // Fall back to project root or home if the directory doesn't exist
+  if (!fs.existsSync(initialCwd)) {
+    console.log(`[terminal] cwd not found: ${initialCwd}, falling back`);
+    initialCwd = fs.existsSync(PROJECT_ROOT) ? PROJECT_ROOT : os.homedir();
+  }
 
   console.log(`[terminal] New session → cwd: ${initialCwd}`);
 
