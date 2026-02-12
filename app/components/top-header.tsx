@@ -5,7 +5,7 @@ import Link from "next/link";
 import Avatar from "@/app/components/avatar";
 import { getSessionToken } from "@/app/components/session-guard";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import LogoutButton from "@/app/components/logout-button";
 
 interface TopHeaderProps {
@@ -63,7 +63,7 @@ export default function TopHeader({
     return token ? `${path}?t=${encodeURIComponent(token)}` : path;
   }
 
-  const fetchNotifs = useCallback(async () => {
+  const fetchNotifsRef = useRef(async () => {
     try {
       const res = await fetch(apiUrl("/api/notifications"), { credentials: "include" });
       if (res.ok) {
@@ -72,7 +72,7 @@ export default function TopHeader({
         setNotifCount((json.notifications || []).filter((n: { readAt: string | null }) => !n.readAt).length);
       }
     } catch { /* ignore */ }
-  }, []);
+  });
 
   // Close panel on outside click
   useEffect(() => {
@@ -90,16 +90,20 @@ export default function TopHeader({
   }, []);
 
   // Fetch when panel opens
-  useEffect(() => { if (notifOpen) fetchNotifs(); }, [notifOpen, fetchNotifs]);
+  useEffect(() => {
+    if (notifOpen) { void fetchNotifsRef.current(); }
+  }, [notifOpen]);
 
   // Poll unread count
   useEffect(() => {
     if (!isLoggedIn) return;
-    const poll = setInterval(async () => {
-      try {
-        const res = await fetch(apiUrl("/api/notifications/unread"), { credentials: "include" });
-        if (res.ok) { const j = await res.json(); setNotifCount(j.count); }
-      } catch { /* ignore */ }
+    const poll = setInterval(() => {
+      void (async () => {
+        try {
+          const res = await fetch(apiUrl("/api/notifications/unread"), { credentials: "include" });
+          if (res.ok) { const j = await res.json(); setNotifCount(j.count); }
+        } catch { /* ignore */ }
+      })();
     }, 15_000);
     return () => clearInterval(poll);
   }, [isLoggedIn]);
