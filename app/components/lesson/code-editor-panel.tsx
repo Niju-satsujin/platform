@@ -8,6 +8,7 @@ import { FileTree } from "./file-tree";
 import { FolderPicker } from "./folder-picker";
 import { guessLanguage, type StarterFiles } from "@/lib/starter-code";
 import { useEditorMode } from "@/lib/use-editor-mode";
+import type { XtermTerminalHandle } from "./xterm-terminal";
 
 /** localStorage key for persisted workspace directory */
 function workspaceStorageKey(lessonId: string, partSlug: string) {
@@ -31,7 +32,7 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ),
 });
 
-const CloudTerminal = dynamic(() => import("./cloud-terminal"), {
+const XtermTerminal = dynamic(() => import("./xterm-terminal"), {
   ssr: false,
   loading: () => (
     <div className="flex-1 flex items-center justify-center bg-[#0a0a0f] text-gray-600 text-sm">
@@ -75,10 +76,9 @@ export function CodeEditorPanel({
   const [saving, setSaving] = useState(false);
   const [ready, setReady] = useState(false);
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
-  const [terminalCommand, setTerminalCommand] = useState<string>("");
-  const [terminalCommandNonce, setTerminalCommandNonce] = useState(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const initRef = useRef(false);
+  const terminalRef = useRef<XtermTerminalHandle>(null);
   const { editorMode } = useEditorMode();
   const vimStatusRef = useRef<HTMLDivElement>(null);
   const vimModeRef = useRef<{ dispose: () => void } | null>(null);
@@ -471,8 +471,7 @@ export function CodeEditorPanel({
                     await saveFile(file.path, file.content);
                   }
                 }
-                setTerminalCommand("make test");
-                setTerminalCommandNonce((n) => n + 1);
+                terminalRef.current?.sendCommand("make test");
               }}
               className="editor-btn text-[11px]"
               title="Run make test in the embedded terminal"
@@ -568,16 +567,10 @@ export function CodeEditorPanel({
           {/* Cloud terminal */}
           <Panel defaultSize={40} minSize={15}>
             {ready ? (
-              <CloudTerminal
-                getCode={() => openFiles[activeIdx]?.content ?? ""}
-                getFiles={() =>
-                  openFiles.map((f) => ({ name: f.name, content: f.content }))
-                }
-                language={currentLang}
-                lessonId={lessonId}
-                workspaceDir={workspaceDir}
-                externalCommand={terminalCommand}
-                externalCommandNonce={terminalCommandNonce}
+              <XtermTerminal
+                ref={terminalRef}
+                wsUrl="ws://localhost:3061"
+                cwd={workspaceDir}
               />
             ) : (
               <div className="flex items-center justify-center h-full bg-[#0a0a0f] text-gray-600 text-sm">

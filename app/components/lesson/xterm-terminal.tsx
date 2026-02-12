@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 
 interface XtermTerminalProps {
   /** WebSocket URL for the terminal server */
@@ -9,18 +9,31 @@ interface XtermTerminalProps {
   cwd?: string;
 }
 
+export interface XtermTerminalHandle {
+  /** Send a command string to the terminal (types it + presses Enter) */
+  sendCommand: (cmd: string) => void;
+}
+
 /**
  * Real terminal emulator powered by xterm.js + node-pty.
  * Connects to the WebSocket terminal server for full interactive shell access.
  *
  * Must be dynamically imported with ssr:false.
  */
-export default function XtermTerminal({
-  wsUrl = "ws://localhost:3061",
-  cwd,
-}: XtermTerminalProps) {
+const XtermTerminal = forwardRef<XtermTerminalHandle, XtermTerminalProps>(
+  function XtermTerminal({ wsUrl = "ws://localhost:3061", cwd }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    sendCommand(cmd: string) {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "input", data: cmd + "\n" }));
+      }
+    },
+  }));
 
   useEffect(() => {
     let disposed = false;
@@ -80,6 +93,7 @@ export default function XtermTerminal({
       // Connect WebSocket — pass cwd as query param
       const url = cwd ? `${wsUrl}?cwd=${encodeURIComponent(cwd)}` : wsUrl;
       const ws = new WebSocket(url);
+      wsRef.current = ws;
 
       ws.onopen = () => {
         // Send initial terminal size
@@ -145,6 +159,7 @@ export default function XtermTerminal({
       // Store cleanup
       cleanupRef.current = () => {
         observer.disconnect();
+        wsRef.current = null;
         ws.close();
         terminal.dispose();
       };
@@ -167,4 +182,6 @@ export default function XtermTerminal({
       <div ref={containerRef} className="flex-1 min-h-0 p-1" />
     </div>
   );
-}
+});
+
+export default XtermTerminal;
