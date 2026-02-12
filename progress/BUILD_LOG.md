@@ -1027,3 +1027,28 @@
   - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
 - Next step:
   - Verify in lesson IDE local mode: edit file, click `🧪 Testing`, confirm sync then terminal output appears and tests reflect local edits.
+
+## Entry — Vim Mode Behavior Upgrade
+- UTC timestamp: 2026-02-12T05:42:57Z
+- What changed:
+  - Upgraded lesson editor `nvim` mode to support core Vim-like Ex commands:
+    - `:w` save active file
+    - `:q` close active tab (blocks when dirty)
+    - `:wq` / `:x` save then close
+    - `:bd` close active tab
+  - Added insert-mode escape mappings:
+    - `jj` -> `<Esc>`
+    - `jk` -> `<Esc>`
+  - Added active-hook focus wiring so Ex commands target the currently focused lesson editor.
+- Files created/modified:
+  - `app/components/lesson/code-editor-panel.tsx`
+  - `progress/BUILD_LOG.md`
+  - `progress/HANDOFF.md`
+- Commands run:
+  - `rg -n "initVimMode|monaco-vim|editorMode === \"nvim\""`
+  - `sed -n ... app/components/lesson/code-editor-panel.tsx`
+  - `sed -n ... app/components/code-editor.tsx`
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Verify in lesson editor (nvim mode): test `jj`, `:w`, `:q`, `:wq`, and `:bd` on a real file tab.

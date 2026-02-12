@@ -97,6 +97,10 @@
   - Terminal now remains available in local mode via workspace sync.
   - In local mode, `🧪 Testing` auto-syncs local files into server workspace mirror, then runs `make test`.
   - Local mode also has manual `⇅ Sync` button for arbitrary terminal command workflows.
+- Lesson editor `nvim` mode now includes Vim-style command behavior:
+  - `:w`, `:q`, `:wq`, `:x`, `:bd`
+  - `jj`/`jk` in insert mode to return to normal mode
+  - Ex commands target the currently focused lesson editor instance.
 
 ## What Is Unfinished
 - Migration SQL was added but not executed in this environment.

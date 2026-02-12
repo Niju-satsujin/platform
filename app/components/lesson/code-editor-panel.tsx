@@ -45,6 +45,17 @@ type DirectoryPickerFn = (options?: {
   mode?: "read" | "readwrite";
 }) => Promise<BrowserDirectoryHandle>;
 
+type VimHook = {
+  save: () => Promise<void>;
+  quit: () => void;
+  writeQuit: () => Promise<void>;
+};
+
+type VWindow = Window & {
+  __tspVimHook?: VimHook;
+  __tspVimCommandsRegistered?: boolean;
+};
+
 const LOCAL_IGNORED = new Set([
   "node_modules",
   ".git",
@@ -196,8 +207,19 @@ export function CodeEditorPanel({
   const vimStatusRef = useRef<HTMLDivElement>(null);
   const vimModeRef = useRef<{ dispose: () => void } | null>(null);
   const editorInstanceRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null);
+  const vimFocusListenerRef = useRef<{ dispose: () => void } | null>(null);
+  const openFilesRef = useRef<OpenFile[]>([]);
+  const activeIdxRef = useRef(0);
   const localRootHandleRef = useRef<BrowserDirectoryHandle | null>(null);
   const localFileMapRef = useRef<Map<string, BrowserFileHandle>>(new Map());
+
+  useEffect(() => {
+    openFilesRef.current = openFiles;
+  }, [openFiles]);
+
+  useEffect(() => {
+    activeIdxRef.current = activeIdx;
+  }, [activeIdx]);
 
   const refreshLocalTree = useCallback(async () => {
     const rootHandle = localRootHandleRef.current;
@@ -586,6 +608,32 @@ export function CodeEditorPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [activeIdx, openFiles, saveFile]);
 
+  const vimSave = useCallback(async () => {
+    const idx = activeIdxRef.current;
+    const file = openFilesRef.current[idx];
+    if (!file) return;
+    await saveFile(file.path, file.content);
+  }, [saveFile]);
+
+  const vimQuit = useCallback(() => {
+    const idx = activeIdxRef.current;
+    const file = openFilesRef.current[idx];
+    if (!file) return;
+    if (file.dirty) {
+      window.alert("No write since last change (:q! to force is not supported). Use :w first.");
+      return;
+    }
+    handleCloseFile(idx);
+  }, [handleCloseFile]);
+
+  const vimWriteQuit = useCallback(async () => {
+    await vimSave();
+    const idx = activeIdxRef.current;
+    if (openFilesRef.current[idx]) {
+      handleCloseFile(idx);
+    }
+  }, [handleCloseFile, vimSave]);
+
   /* ── Vim mode attach/detach ── */
   const attachVim = useCallback(async () => {
     if (!editorInstanceRef.current || !vimStatusRef.current) return;
@@ -593,11 +641,50 @@ export function CodeEditorPanel({
       vimModeRef.current.dispose();
       vimModeRef.current = null;
     }
-    if (editorMode === "nvim") {
-      const { initVimMode } = await import("monaco-vim");
-      vimModeRef.current = initVimMode(editorInstanceRef.current, vimStatusRef.current);
+    if (vimFocusListenerRef.current) {
+      vimFocusListenerRef.current.dispose();
+      vimFocusListenerRef.current = null;
     }
-  }, [editorMode]);
+    if (editorMode === "nvim") {
+      const { initVimMode, VimMode } = await import("monaco-vim");
+      const w = window as VWindow;
+      w.__tspVimHook = {
+        save: vimSave,
+        quit: vimQuit,
+        writeQuit: vimWriteQuit,
+      };
+
+      if (!w.__tspVimCommandsRegistered) {
+        VimMode.Vim.defineEx("write", "w", () => {
+          void (window as VWindow).__tspVimHook?.save();
+        });
+        VimMode.Vim.defineEx("quit", "q", () => {
+          (window as VWindow).__tspVimHook?.quit();
+        });
+        VimMode.Vim.defineEx("wq", "wq", () => {
+          void (window as VWindow).__tspVimHook?.writeQuit();
+        });
+        VimMode.Vim.defineEx("xit", "x", () => {
+          void (window as VWindow).__tspVimHook?.writeQuit();
+        });
+        VimMode.Vim.defineEx("bdelete", "bd", () => {
+          (window as VWindow).__tspVimHook?.quit();
+        });
+        VimMode.Vim.map("jj", "<Esc>", "insert");
+        VimMode.Vim.map("jk", "<Esc>", "insert");
+        w.__tspVimCommandsRegistered = true;
+      }
+
+      vimModeRef.current = initVimMode(editorInstanceRef.current, vimStatusRef.current);
+      vimFocusListenerRef.current = editorInstanceRef.current.onDidFocusEditorText(() => {
+        (window as VWindow).__tspVimHook = {
+          save: vimSave,
+          quit: vimQuit,
+          writeQuit: vimWriteQuit,
+        };
+      });
+    }
+  }, [editorMode, vimQuit, vimSave, vimWriteQuit]);
 
   useEffect(() => {
     attachVim();
@@ -605,6 +692,10 @@ export function CodeEditorPanel({
       if (vimModeRef.current) {
         vimModeRef.current.dispose();
         vimModeRef.current = null;
+      }
+      if (vimFocusListenerRef.current) {
+        vimFocusListenerRef.current.dispose();
+        vimFocusListenerRef.current = null;
       }
     };
   }, [attachVim]);
