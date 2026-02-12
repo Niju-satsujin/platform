@@ -57,7 +57,10 @@ export default function TopHeader({
   const isAdmin = ADMIN_USERS.includes(username);
   const NAV_ITEMS = useMemo(() => {
     const items = [...BASE_NAV_ITEMS];
-    if (isAdmin) items.push({ label: "Admin", href: "/admin/content", matchPrefix: "/admin" });
+    if (isAdmin) {
+      items.push({ label: "Admin", href: "/admin/content", matchPrefix: "/admin/content" });
+      items.push({ label: "IDE", href: "/admin/ide", matchPrefix: "/admin/ide" });
+    }
     return items;
   }, [isAdmin]);
 
