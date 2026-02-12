@@ -5,6 +5,7 @@ import {
   useEffect,
   useRef,
   useCallback,
+  useMemo,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import dynamic from "next/dynamic";
@@ -69,17 +70,11 @@ function fileIcon(name: string, type: "file" | "directory", isExpanded?: boolean
 
 /* ── Helper: recursively update children in tree ── */
 function updateTreeChildren(
-  tree: TreeEntry[],
-  targetPath: string,
-  newChildren: TreeEntry[]
+  tree: TreeEntry[], targetPath: string, newChildren: TreeEntry[]
 ): TreeEntry[] {
   return tree.map((entry) => {
-    if (entry.path === targetPath) {
-      return { ...entry, children: newChildren };
-    }
-    if (entry.children) {
-      return { ...entry, children: updateTreeChildren(entry.children, targetPath, newChildren) };
-    }
+    if (entry.path === targetPath) return { ...entry, children: newChildren };
+    if (entry.children) return { ...entry, children: updateTreeChildren(entry.children, targetPath, newChildren) };
     return entry;
   });
 }
@@ -89,19 +84,14 @@ function ContextItem({ label, icon, danger, onClick }: {
   label: string; icon: string; danger?: boolean; onClick: () => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-[#3b3d57] transition-colors ${
-        danger ? "text-red-400" : "text-gray-300"
-      }`}
-    >
-      <span className="text-xs">{icon}</span>
-      {label}
+    <button onClick={onClick}
+      className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-[#3b3d57] transition-colors ${danger ? "text-red-400" : "text-gray-300"}`}>
+      <span className="text-xs">{icon}</span> {label}
     </button>
   );
 }
 
-/* ── Tree Node Component ── */
+/* ── Tree Node ── */
 function TreeNode({
   entry, depth, expanded, activeTab, toggleExpand, openFile, onContextMenu,
   creating, createName, setCreateName, handleCreate, setCreating,
@@ -125,66 +115,42 @@ function TreeNode({
   return (
     <div>
       <div
-        className={`flex items-center gap-1 px-2 py-[3px] cursor-pointer hover:bg-[#232433] group ${
-          isActive ? "bg-[#232433] text-blue-400" : "text-gray-400"
-        }`}
+        className={`flex items-center gap-1 px-2 py-[3px] cursor-pointer hover:bg-[#232433] group ${isActive ? "bg-[#232433] text-blue-400" : "text-gray-400"}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
-        onClick={() => {
-          if (entry.type === "directory") toggleExpand(entry);
-          else openFile(entry.path, entry.name);
-        }}
-        onContextMenu={(e) => onContextMenu(e, entry)}
-      >
+        onClick={() => { if (entry.type === "directory") toggleExpand(entry); else openFile(entry.path, entry.name); }}
+        onContextMenu={(e) => onContextMenu(e, entry)}>
         {entry.type === "directory" ? (
           <span className={`text-[10px] text-gray-500 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}>▶</span>
-        ) : (
-          <span className="w-3" />
-        )}
+        ) : (<span className="w-3" />)}
         <span className="text-xs">{fileIcon(entry.name, entry.type, isExpanded)}</span>
         {isRenaming ? (
-          <input
-            autoFocus
-            value={renameName}
+          <input autoFocus value={renameName}
             onChange={(e) => setRenameName(e.target.value)}
-            onKeyDown={(e: ReactKeyboardEvent) => {
-              if (e.key === "Enter") handleRename(entry.path);
-              if (e.key === "Escape") { setRenaming(null); setRenameName(""); }
-            }}
+            onKeyDown={(e: ReactKeyboardEvent) => { if (e.key === "Enter") handleRename(entry.path); if (e.key === "Escape") { setRenaming(null); setRenameName(""); } }}
             onBlur={() => { setRenaming(null); setRenameName(""); }}
             className="flex-1 px-1 py-0 bg-[#232433] border border-blue-500 rounded text-xs text-gray-200 outline-none"
-            onClick={(e) => e.stopPropagation()}
-          />
-        ) : (
-          <span className="truncate text-[13px]">{entry.name}</span>
-        )}
+            onClick={(e) => e.stopPropagation()} />
+        ) : (<span className="truncate text-[13px]">{entry.name}</span>)}
       </div>
       {entry.type === "directory" && isExpanded && (
         <div>
           {creating && creating.parentPath === entry.path && (
             <div style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }} className="pr-2 py-0.5">
-              <input
-                autoFocus
-                value={createName}
+              <input autoFocus value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
-                onKeyDown={(e: ReactKeyboardEvent) => {
-                  if (e.key === "Enter") handleCreate();
-                  if (e.key === "Escape") { setCreating(null); setCreateName(""); }
-                }}
+                onKeyDown={(e: ReactKeyboardEvent) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") { setCreating(null); setCreateName(""); } }}
                 onBlur={() => { setCreating(null); setCreateName(""); }}
                 placeholder={creating.type === "file" ? "filename.ext" : "folder-name"}
-                className="w-full px-2 py-1 bg-[#232433] border border-blue-500 rounded text-xs text-gray-200 outline-none"
-              />
+                className="w-full px-2 py-1 bg-[#232433] border border-blue-500 rounded text-xs text-gray-200 outline-none" />
             </div>
           )}
           {entry.children?.map((child) => (
-            <TreeNode
-              key={child.path} entry={child} depth={depth + 1} expanded={expanded}
+            <TreeNode key={child.path} entry={child} depth={depth + 1} expanded={expanded}
               activeTab={activeTab} toggleExpand={toggleExpand} openFile={openFile}
               onContextMenu={onContextMenu} creating={creating} createName={createName}
               setCreateName={setCreateName} handleCreate={handleCreate} setCreating={setCreating}
               renaming={renaming} renameName={renameName} setRenameName={setRenameName}
-              handleRename={handleRename} setRenaming={setRenaming}
-            />
+              handleRename={handleRename} setRenaming={setRenaming} />
           ))}
         </div>
       )}
@@ -193,18 +159,85 @@ function TreeNode({
 }
 
 /* ════════════════════════════════════════════════════════════════════
+   WebSocket-backed FS RPC
+   All file operations go through the same WebSocket as the terminal.
+   ════════════════════════════════════════════════════════════════════ */
+function useWsFs(ws: WebSocket | null) {
+  const pendingRef = useRef<Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>>(new Map());
+  const idCounter = useRef(0);
+
+  useEffect(() => {
+    if (!ws) return;
+    const handler = (ev: MessageEvent) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "fs-result" && msg.id) {
+          const p = pendingRef.current.get(msg.id);
+          if (p) {
+            pendingRef.current.delete(msg.id);
+            if (msg.error) p.reject(new Error(msg.error));
+            else p.resolve(msg);
+          }
+        }
+      } catch { /* not for us */ }
+    };
+    ws.addEventListener("message", handler);
+    return () => ws.removeEventListener("message", handler);
+  }, [ws]);
+
+  const rpc = useCallback((action: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
+    return new Promise((resolve, reject) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) { reject(new Error("Not connected")); return; }
+      const id = `fs-${++idCounter.current}`;
+      pendingRef.current.set(id, { resolve: resolve as (v: unknown) => void, reject });
+      ws.send(JSON.stringify({ type: "fs", id, action, ...params }));
+      setTimeout(() => {
+        if (pendingRef.current.has(id)) {
+          pendingRef.current.delete(id);
+          reject(new Error("FS operation timed out"));
+        }
+      }, 10000);
+    });
+  }, [ws]);
+
+  return useMemo(() => ({
+    browse: (path?: string) => rpc("browse", { path }),
+    tree: (path: string, depth = 3) => rpc("tree", { path, depth }),
+    read: (path: string) => rpc("read", { path }),
+    write: (path: string, content: string) => rpc("write", { path, content }),
+    create: (path: string, itemType: string) => rpc("create", { path, itemType }),
+    del: (path: string) => rpc("delete", { path }),
+    rename: (oldPath: string, newPath: string) => rpc("rename", { oldPath, newPath }),
+  }), [rpc]);
+}
+
+/* ════════════════════════════════════════════════════════════════════
    IDE Page
    ════════════════════════════════════════════════════════════════════ */
 export default function IDEPage() {
+  /* ── Connection state ── */
+  const [serverUrl, setServerUrl] = useState<string>("");
+  const [connecting, setConnecting] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [connError, setConnError] = useState<string>("");
+  const wsRef = useRef<WebSocket | null>(null);
+
+  /* ── Folder picker ── */
   const [rootPath, setRootPath] = useState<string>("");
-  const [tree, setTree] = useState<TreeEntry[]>([]);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [tabs, setTabs] = useState<OpenTab[]>([]);
-  const [activeTab, setActiveTab] = useState<string>("");
-  const [showPicker, setShowPicker] = useState(true);
+  const [showPicker, setShowPicker] = useState(false);
   const [pickerPath, setPickerPath] = useState<string>("");
   const [pickerEntries, setPickerEntries] = useState<{ name: string; path: string; type: string }[]>([]);
   const [pickerParent, setPickerParent] = useState<string | null>(null);
+
+  /* ── File explorer ── */
+  const [tree, setTree] = useState<TreeEntry[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  /* ── Editor ── */
+  const [tabs, setTabs] = useState<OpenTab[]>([]);
+  const [activeTab, setActiveTab] = useState<string>("");
+
+  /* ── Context menu ── */
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entry: TreeEntry } | null>(null);
   const [creating, setCreating] = useState<{ parentPath: string; type: "file" | "directory" } | null>(null);
   const [createName, setCreateName] = useState("");
@@ -213,30 +246,73 @@ export default function IDEPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  /* ── Terminal ── */
   const termRef = useRef<HTMLDivElement>(null);
   const termInstanceRef = useRef<import("@xterm/xterm").Terminal | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<import("@xterm/addon-fit").FitAddon | null>(null);
 
-  /* ── Folder Picker ── */
+  /* ── FS operations via WebSocket ── */
+  const fs = useWsFs(wsRef.current);
+
+  /* ── Load saved server URL ── */
+  useEffect(() => {
+    const saved = localStorage.getItem("ide-server-url") || "";
+    if (saved) setServerUrl(saved);
+  }, []);
+
+  /* ── Connect to terminal server ── */
+  const connectToServer = useCallback((url: string) => {
+    if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+    setConnecting(true);
+    setConnError("");
+
+    const ws = new WebSocket(url);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setConnecting(false);
+      setConnected(true);
+      setConnError("");
+      localStorage.setItem("ide-server-url", url);
+    };
+
+    ws.onclose = () => {
+      setConnected(false);
+      setConnecting(false);
+    };
+
+    ws.onerror = () => {
+      setConnecting(false);
+      setConnected(false);
+      setConnError("Failed to connect. Make sure the terminal server is running.");
+    };
+
+    return ws;
+  }, []);
+
+  /* ── Browse picker via WebSocket ── */
   const browsePicker = useCallback(async (dirPath?: string) => {
-    const url = dirPath ? `/api/fs/browse?path=${encodeURIComponent(dirPath)}` : `/api/fs/browse`;
-    const res = await fetch(url);
-    const json = await res.json();
-    setPickerEntries(json.entries || []);
-    setPickerPath(json.path || "");
-    setPickerParent(json.parent || null);
-  }, []);
+    try {
+      const result = await fs.browse(dirPath) as Record<string, unknown>;
+      setPickerEntries((result.entries || []) as { name: string; path: string; type: string }[]);
+      setPickerPath((result.path || "") as string);
+      setPickerParent((result.parent || null) as string | null);
+    } catch (err) {
+      console.error("Browse failed:", err);
+    }
+  }, [fs]);
 
-  useEffect(() => { if (showPicker) browsePicker(); }, [showPicker, browsePicker]);
-
-  /* ── Tree loading ── */
+  /* ── Tree loading via WebSocket ── */
   const loadTree = useCallback(async (dir: string) => {
-    const res = await fetch(`/api/fs/tree?path=${encodeURIComponent(dir)}&depth=3`);
-    const json = await res.json();
-    setTree(json.entries || []);
-  }, []);
+    try {
+      const result = await fs.tree(dir, 3) as Record<string, unknown>;
+      setTree((result.entries || []) as TreeEntry[]);
+    } catch (err) {
+      console.error("Tree load failed:", err);
+    }
+  }, [fs]);
 
+  /* ── Open folder ── */
   const openFolder = useCallback((dir: string) => {
     setRootPath(dir);
     setShowPicker(false);
@@ -244,12 +320,19 @@ export default function IDEPage() {
     setExpanded(new Set([dir]));
   }, [loadTree]);
 
+  /* ── When first connected, show picker ── */
+  useEffect(() => {
+    if (connected && !rootPath) {
+      setShowPicker(true);
+      browsePicker();
+    }
+  }, [connected, rootPath, browsePicker]);
+
   /* ── Lazy subtree ── */
   const loadSubtree = useCallback(async (dir: string) => {
-    const res = await fetch(`/api/fs/tree?path=${encodeURIComponent(dir)}&depth=2`);
-    const json = await res.json();
-    return (json.entries || []) as TreeEntry[];
-  }, []);
+    const result = await fs.tree(dir, 2) as Record<string, unknown>;
+    return (result.entries || []) as TreeEntry[];
+  }, [fs]);
 
   const toggleExpand = useCallback(async (entry: TreeEntry) => {
     if (entry.type !== "directory") return;
@@ -264,30 +347,32 @@ export default function IDEPage() {
     setExpanded(next);
   }, [expanded, loadSubtree]);
 
-  /* ── File operations ── */
+  /* ── File operations via WebSocket ── */
   const openFile = useCallback(async (filePath: string, name: string) => {
     const existing = tabs.find((t) => t.path === filePath);
     if (existing) { setActiveTab(filePath); return; }
-    const res = await fetch(`/api/fs/read?path=${encodeURIComponent(filePath)}`);
-    if (!res.ok) return;
-    const json = await res.json();
-    const lang = detectLanguage(name);
-    setTabs((prev) => [...prev, { path: filePath, name, content: json.content, dirty: false, language: lang }]);
-    setActiveTab(filePath);
-  }, [tabs]);
+    try {
+      const result = await fs.read(filePath) as Record<string, unknown>;
+      const lang = detectLanguage(name);
+      setTabs((prev) => [...prev, { path: filePath, name, content: result.content as string, dirty: false, language: lang }]);
+      setActiveTab(filePath);
+    } catch (err) {
+      console.error("Read failed:", err);
+    }
+  }, [tabs, fs]);
 
   const saveFile = useCallback(async (filePath: string) => {
     const tab = tabs.find((t) => t.path === filePath);
     if (!tab) return;
     setSaving(true);
-    await fetch("/api/fs/write", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: filePath, content: tab.content }),
-    });
-    setTabs((prev) => prev.map((t) => (t.path === filePath ? { ...t, dirty: false } : t)));
+    try {
+      await fs.write(filePath, tab.content);
+      setTabs((prev) => prev.map((t) => (t.path === filePath ? { ...t, dirty: false } : t)));
+    } catch (err) {
+      console.error("Save failed:", err);
+    }
     setSaving(false);
-  }, [tabs]);
+  }, [tabs, fs]);
 
   const closeTab = useCallback((filePath: string) => {
     setTabs((prev) => prev.filter((t) => t.path !== filePath));
@@ -301,60 +386,57 @@ export default function IDEPage() {
     setTabs((prev) => prev.map((t) => t.path === filePath ? { ...t, content, dirty: true } : t));
   }, []);
 
-  /* ── Create file/folder ── */
+  /* ── Create file/folder via WebSocket ── */
   const handleCreate = useCallback(async () => {
     if (!creating || !createName.trim()) return;
     const fullPath = `${creating.parentPath}/${createName.trim()}`;
-    await fetch("/api/fs/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: fullPath, type: creating.type }),
-    });
+    try {
+      await fs.create(fullPath, creating.type);
+    } catch (err) {
+      console.error("Create failed:", err);
+    }
     setCreating(null);
     setCreateName("");
     loadTree(rootPath);
-  }, [creating, createName, rootPath, loadTree]);
+  }, [creating, createName, rootPath, loadTree, fs]);
 
-  /* ── Delete ── */
+  /* ── Delete via WebSocket ── */
   const handleDelete = useCallback(async (targetPath: string) => {
-    await fetch("/api/fs/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: targetPath }),
-    });
+    try {
+      await fs.del(targetPath);
+    } catch (err) {
+      console.error("Delete failed:", err);
+    }
     setTabs((prev) => prev.filter((t) => !t.path.startsWith(targetPath)));
     if (activeTab.startsWith(targetPath)) setActiveTab("");
     setDeleteConfirm(null);
     loadTree(rootPath);
-  }, [rootPath, activeTab, loadTree]);
+  }, [rootPath, activeTab, loadTree, fs]);
 
-  /* ── Rename ── */
+  /* ── Rename via WebSocket ── */
   const handleRename = useCallback(async (oldPath: string) => {
     if (!renameName.trim()) { setRenaming(null); return; }
     const dir = oldPath.substring(0, oldPath.lastIndexOf("/"));
     const newPath = `${dir}/${renameName.trim()}`;
-    await fetch("/api/fs/rename", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ oldPath, newPath }),
-    });
+    try {
+      await fs.rename(oldPath, newPath);
+    } catch (err) {
+      console.error("Rename failed:", err);
+    }
     setTabs((prev) => prev.map((t) => {
       if (t.path === oldPath) return { ...t, path: newPath, name: renameName.trim() };
-      if (t.path.startsWith(oldPath + "/")) {
-        const np = newPath + t.path.substring(oldPath.length);
-        return { ...t, path: np };
-      }
+      if (t.path.startsWith(oldPath + "/")) { const np = newPath + t.path.substring(oldPath.length); return { ...t, path: np }; }
       return t;
     }));
     if (activeTab === oldPath) setActiveTab(newPath);
     setRenaming(null);
     setRenameName("");
     loadTree(rootPath);
-  }, [renameName, rootPath, activeTab, loadTree]);
+  }, [renameName, rootPath, activeTab, loadTree, fs]);
 
   /* ── Terminal setup ── */
   useEffect(() => {
-    if (!rootPath || !termRef.current) return;
+    if (!connected || !termRef.current || !wsRef.current) return;
     if (termInstanceRef.current) return;
 
     let cancelled = false;
@@ -363,7 +445,7 @@ export default function IDEPage() {
       const { Terminal } = await import("@xterm/xterm");
       const { FitAddon } = await import("@xterm/addon-fit");
 
-      if (cancelled || !termRef.current) return;
+      if (cancelled || !termRef.current || !wsRef.current) return;
 
       const term = new Terminal({
         cursorBlink: true,
@@ -380,27 +462,25 @@ export default function IDEPage() {
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
       term.open(termRef.current);
-      try { fitAddon.fit(); } catch { /* not visible yet */ }
+      try { fitAddon.fit(); } catch { /* */ }
 
       fitAddonRef.current = fitAddon;
       termInstanceRef.current = term;
 
-      const wsUrl = `ws://localhost:3061?cwd=${encodeURIComponent(rootPath)}`;
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+      const ws = wsRef.current;
 
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
-      };
-      ws.onmessage = (ev) => {
+      const msgHandler = (ev: MessageEvent) => {
         try {
           const msg = JSON.parse(ev.data);
           if (msg.type === "output") term.write(msg.data);
-        } catch { term.write(ev.data); }
+        } catch { /* not terminal output */ }
       };
-      ws.onclose = () => {
-        term.write("\r\n\x1b[33m[Terminal disconnected]\x1b[0m\r\n");
-      };
+      ws.addEventListener("message", msgHandler);
+
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
+      }
+
       term.onData((data) => {
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "input", data }));
       });
@@ -410,13 +490,11 @@ export default function IDEPage() {
 
       const container = termRef.current;
       const ro = new ResizeObserver(() => { try { fitAddon.fit(); } catch { /* */ } });
-      ro.observe(container);
-
-      return () => ro.disconnect();
+      if (container) ro.observe(container);
     })();
 
     return () => { cancelled = true; };
-  }, [rootPath]);
+  }, [connected]);
 
   /* ── Keyboard shortcuts ── */
   useEffect(() => {
@@ -439,15 +517,58 @@ export default function IDEPage() {
 
   const activeFile = tabs.find((t) => t.path === activeTab);
 
-  /* ── Folder Picker Screen ── */
+  /* ══════════════════════════════════════════════════════════════════
+     Screen 1: Connect to Terminal Server
+     ══════════════════════════════════════════════════════════════════ */
+  if (!connected) {
+    return (
+      <div className="flex items-center justify-center min-h-[80vh]">
+        <div className="game-card p-8 max-w-lg w-full">
+          <h1 className="text-xl font-bold text-gray-100 mb-2 flex items-center gap-2">
+            <span className="text-2xl">💻</span> Connect to Terminal Server
+          </h1>
+          <p className="text-gray-500 text-sm mb-4">
+            Enter the WebSocket URL of your terminal server.
+            Run <code className="text-yellow-400 bg-gray-800 px-1.5 py-0.5 rounded text-xs">npm run dev:terminal</code> on your machine first.
+          </p>
+          <div className="space-y-3">
+            <input type="text" value={serverUrl}
+              onChange={(e) => setServerUrl(e.target.value)}
+              placeholder="ws://localhost:3061"
+              className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 outline-none focus:border-blue-500 font-mono" />
+            {connError && (
+              <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{connError}</div>
+            )}
+            <button onClick={() => { const url = serverUrl.trim() || "ws://localhost:3061"; setServerUrl(url); connectToServer(url); }}
+              disabled={connecting}
+              className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg font-medium transition-colors">
+              {connecting ? "Connecting…" : "Connect"}
+            </button>
+            <div className="text-gray-600 text-xs space-y-1 mt-4">
+              <p className="font-semibold text-gray-500">Quick setup:</p>
+              <p>1. On your server/machine, run:</p>
+              <code className="block bg-gray-800 px-2 py-1.5 rounded text-yellow-400 text-xs">npx tsx server/terminal-server.ts</code>
+              <p>2. Enter the URL above (e.g. ws://your-ip:3061)</p>
+              <p>3. You get a real terminal + full filesystem access</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     Screen 2: Folder Picker
+     ══════════════════════════════════════════════════════════════════ */
   if (showPicker) {
     return (
       <div className="flex items-center justify-center min-h-[80vh]">
         <div className="game-card p-8 max-w-lg w-full">
           <h1 className="text-xl font-bold text-gray-100 mb-2 flex items-center gap-2">
-            <span className="text-2xl">💻</span> Open Folder
+            <span className="text-2xl">📂</span> Open Folder
           </h1>
-          <p className="text-gray-500 text-sm mb-4">Select a folder to open in the editor.</p>
+          <p className="text-gray-500 text-sm mb-1">Select a folder to open in the editor.</p>
+          <p className="text-green-500 text-xs mb-4">✓ Connected to {serverUrl}</p>
           <div className="bg-gray-800 rounded-lg px-3 py-2 mb-3 text-sm text-gray-300 font-mono flex items-center gap-2">
             <span className="text-gray-500">📁</span> {pickerPath || "Select a folder…"}
           </div>
@@ -479,25 +600,26 @@ export default function IDEPage() {
     );
   }
 
-  /* ── Main IDE Layout ── */
+  /* ══════════════════════════════════════════════════════════════════
+     Screen 3: Main IDE
+     ══════════════════════════════════════════════════════════════════ */
   return (
     <div className="h-[calc(100vh-60px)] flex flex-col bg-[#1a1b26] overflow-hidden">
       {/* Top bar */}
       <div className="h-9 bg-[#16161e] border-b border-[#232433] flex items-center px-3 gap-3 flex-shrink-0">
-        <button
-          onClick={() => {
-            wsRef.current?.close();
-            termInstanceRef.current?.dispose();
-            termInstanceRef.current = null;
-            wsRef.current = null;
-            fitAddonRef.current = null;
-            setTabs([]); setActiveTab(""); setTree([]); setRootPath(""); setShowPicker(true);
-          }}
+        <button onClick={() => { setShowPicker(true); browsePicker(); }}
           className="text-gray-400 hover:text-yellow-400 text-sm transition-colors flex items-center gap-1">
           📁 Open Folder
         </button>
         <span className="text-gray-600 text-xs font-mono truncate flex-1">{rootPath}</span>
+        <span className="text-green-500 text-xs">● Connected</span>
         {saving && <span className="text-yellow-400 text-xs animate-pulse">Saving…</span>}
+        <button onClick={() => {
+            wsRef.current?.close(); wsRef.current = null;
+            termInstanceRef.current?.dispose(); termInstanceRef.current = null; fitAddonRef.current = null;
+            setTabs([]); setActiveTab(""); setTree([]); setRootPath(""); setConnected(false);
+          }}
+          className="text-gray-500 hover:text-red-400 text-xs transition-colors">Disconnect</button>
       </div>
 
       <Group orientation="horizontal" className="flex-1" id="ide-main">
@@ -556,9 +678,7 @@ export default function IDEPage() {
                   {tabs.map((tab) => (
                     <div key={tab.path} onClick={() => setActiveTab(tab.path)}
                       className={`flex items-center gap-1.5 px-3 h-full text-xs cursor-pointer border-r border-[#232433] flex-shrink-0 group ${
-                        activeTab === tab.path
-                          ? "bg-[#1a1b26] text-gray-200 border-t-2 border-t-blue-500"
-                          : "text-gray-500 hover:text-gray-300"
+                        activeTab === tab.path ? "bg-[#1a1b26] text-gray-200 border-t-2 border-t-blue-500" : "text-gray-500 hover:text-gray-300"
                       }`}>
                       <span className="text-[10px]">{fileIcon(tab.name, "file")}</span>
                       <span>{tab.name}</span>
