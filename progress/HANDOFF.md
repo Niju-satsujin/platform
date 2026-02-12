@@ -94,7 +94,9 @@
   - Toolbar has `Local Folder` button to attach a browser-selected directory.
   - File tree/editor open/save works on local files without routing through `/api/fs/read`/`write`.
   - `Server Folder` button switches back to existing server workspace flow.
-  - Terminal + `🧪 Testing` remain server-workspace only by design.
+  - Terminal now remains available in local mode via workspace sync.
+  - In local mode, `🧪 Testing` auto-syncs local files into server workspace mirror, then runs `make test`.
+  - Local mode also has manual `⇅ Sync` button for arbitrary terminal command workflows.
 
 ## What Is Unfinished
 - Migration SQL was added but not executed in this environment.
@@ -123,4 +125,4 @@
 - Middleware matcher excludes `/api/*`, so client-side API calls must pass session token explicitly when cookies are unavailable.
 - `make test` depends on system tools (`make`, `bash`, `cmake`, `c++`, `python3`) being available in runtime environment for `/api/fs/exec`.
 - Local-folder mode requires Chromium-based browser with File System Access API and a secure context (`localhost`/HTTPS).
-- In local-folder mode, terminal commands do not execute against local browser files; user must switch to `Server Folder` for embedded terminal runs.
+- In local mode, terminal executes in server workspace; local files must be synced first (`🧪 Testing` does this automatically, `⇅ Sync` does it manually).

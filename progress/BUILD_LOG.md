@@ -1003,3 +1003,27 @@
   - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
 - Next step:
   - Verify in browser: click `Local Folder`, pick a local directory, edit and save a file, refresh tree, then switch back to `Server Folder`.
+
+## Entry — Local Mode Terminal + Testing Sync
+- UTC timestamp: 2026-02-12T05:34:27Z
+- What changed:
+  - Enabled terminal panel while local-folder mode is active (removed local-mode block message).
+  - Added local-to-server sync pipeline in editor:
+    - scans local folder files
+    - writes them to server workspace mirror path
+    - used before test execution.
+  - Updated `Testing` button behavior:
+    - in local mode, auto-syncs local files to server workspace, then runs `make test`.
+    - in server mode, unchanged behavior.
+  - Added manual `Sync` button in local mode for running arbitrary terminal commands after sync.
+  - Added sync error handling with user-visible alerts.
+- Files created/modified:
+  - `app/components/lesson/code-editor-panel.tsx`
+  - `progress/BUILD_LOG.md`
+  - `progress/HANDOFF.md`
+- Commands run:
+  - `sed -n ... app/components/lesson/code-editor-panel.tsx`
+  - file edits via `apply_patch`
+  - `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+- Next step:
+  - Verify in lesson IDE local mode: edit file, click `🧪 Testing`, confirm sync then terminal output appears and tests reflect local edits.

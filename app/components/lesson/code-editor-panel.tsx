@@ -186,6 +186,7 @@ export function CodeEditorPanel({
   const [activeIdx, setActiveIdx] = useState(0);
   const [showTree, setShowTree] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncingLocal, setSyncingLocal] = useState(false);
   const [ready, setReady] = useState(false);
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -261,6 +262,40 @@ export function CodeEditorPanel({
       setLocalError("Failed to connect local folder.");
     }
   }, [refreshLocalTree]);
+
+  const syncLocalToServerWorkspace = useCallback(async () => {
+    if (!workspaceDir) {
+      throw new Error("Server workspace is not initialized.");
+    }
+    const rootHandle = localRootHandleRef.current;
+    if (!rootHandle) {
+      throw new Error("No local folder connected.");
+    }
+
+    setSyncingLocal(true);
+    try {
+      const tree = await refreshLocalTree();
+      const filePaths = collectFilePaths(tree);
+
+      for (const relativePath of filePaths) {
+        const handle = localFileMapRef.current.get(relativePath);
+        if (!handle) continue;
+        const file = await handle.getFile();
+        const content = await file.text();
+        const serverPath = `${workspaceDir}/${relativePath}`;
+        const res = await fetch("/api/fs/write", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: serverPath, content }),
+        });
+        if (!res.ok) {
+          throw new Error(`Failed syncing file: ${relativePath}`);
+        }
+      }
+    } finally {
+      setSyncingLocal(false);
+    }
+  }, [refreshLocalTree, workspaceDir]);
 
   /* ── Open a workspace directory (re-usable) ── */
   const openWorkspace = useCallback(
@@ -708,6 +743,24 @@ export function CodeEditorPanel({
             >
               📂 Open Folder
             </button>
+            {workspaceMode === "local" && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await syncLocalToServerWorkspace();
+                  } catch (err) {
+                    const msg = err instanceof Error ? err.message : "Sync failed";
+                    window.alert(msg);
+                  }
+                }}
+                className="editor-btn text-[11px]"
+                title="Sync local folder files into server workspace for terminal commands"
+                disabled={!workspaceDir || syncingLocal}
+              >
+                {syncingLocal ? "↻ Syncing" : "⇅ Sync"}
+              </button>
+            )}
             <button
               type="button"
               onClick={async () => {
@@ -718,19 +771,28 @@ export function CodeEditorPanel({
                     await saveFile(file.path, file.content);
                   }
                 }
+                if (workspaceMode === "local") {
+                  try {
+                    await syncLocalToServerWorkspace();
+                  } catch (err) {
+                    const msg = err instanceof Error ? err.message : "Sync failed";
+                    window.alert(msg);
+                    return;
+                  }
+                }
                 terminalRef.current?.sendCommand("make test");
               }}
               className="editor-btn text-[11px]"
-              title={
-                workspaceMode === "local"
-                  ? "Testing runs only in server workspace mode"
-                  : "Run make test in the embedded terminal"
-              }
-              disabled={!workspaceDir || workspaceMode !== "server"}
+              title="Run make test in the embedded terminal"
+              disabled={!workspaceDir || syncingLocal}
             >
               🧪 Testing
             </button>
-            {saving && <span className="text-[10px] text-gray-500">saving…</span>}
+            {(saving || syncingLocal) && (
+              <span className="text-[10px] text-gray-500">
+                {syncingLocal ? "syncing…" : "saving…"}
+              </span>
+            )}
             {activeFile && (
               <>
                 <button
@@ -817,11 +879,7 @@ export function CodeEditorPanel({
 
           {/* Cloud terminal */}
           <Panel defaultSize={40} minSize={15}>
-            {workspaceMode === "local" ? (
-              <div className="flex items-center justify-center h-full bg-[#0a0a0f] text-gray-500 text-sm text-center px-6">
-                Local-folder mode is active. Terminal commands run only in the server workspace.
-              </div>
-            ) : ready ? (
+            {ready && workspaceDir ? (
               <XtermTerminal
                 ref={terminalRef}
                 wsUrl="ws://localhost:3061"
