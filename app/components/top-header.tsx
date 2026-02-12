@@ -55,6 +55,7 @@ export default function TopHeader({
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<{ id: string; type: string; title: string; body: string; link: string | null; readAt: string | null; createdAt: string }[]>([]);
   const [notifCount, setNotifCount] = useState(unreadNotifications);
+  const [now, setNow] = useState(() => Date.now());
   const notifRef = useRef<HTMLDivElement>(null);
 
   function apiUrl(path: string) {
@@ -81,6 +82,12 @@ export default function TopHeader({
     if (notifOpen) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [notifOpen]);
+
+  // Tick "now" every 60s for relative timestamps
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Fetch when panel opens
   useEffect(() => { if (notifOpen) fetchNotifs(); }, [notifOpen, fetchNotifs]);
@@ -124,7 +131,7 @@ export default function TopHeader({
   }
 
   function timeAgo(iso: string) {
-    const diff = Date.now() - new Date(iso).getTime();
+    const diff = now - new Date(iso).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "now";
     if (mins < 60) return `${mins}m`;
