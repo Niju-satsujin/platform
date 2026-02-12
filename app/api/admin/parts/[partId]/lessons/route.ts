@@ -4,15 +4,15 @@ import { prisma } from "@/lib/db";
 
 const ADMIN_USERS = ["obajali", "admin"];
 
-async function requireAdmin(req: NextRequest) {
-  const user = await getCurrentUser(req);
+async function requireAdmin() {
+  const user = await getCurrentUser();
   if (!user || !ADMIN_USERS.includes(user.username)) return null;
   return user;
 }
 
 // POST — create a new lesson inside a part
 export async function POST(req: NextRequest, { params }: { params: Promise<{ partId: string }> }) {
-  const user = await requireAdmin(req);
+  const user = await requireAdmin();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   const { partId } = await params;

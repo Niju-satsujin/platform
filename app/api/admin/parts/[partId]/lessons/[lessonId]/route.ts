@@ -4,15 +4,15 @@ import { prisma } from "@/lib/db";
 
 const ADMIN_USERS = ["obajali", "admin"];
 
-async function requireAdmin(req: NextRequest) {
-  const user = await getCurrentUser(req);
+async function requireAdmin() {
+  const user = await getCurrentUser();
   if (!user || !ADMIN_USERS.includes(user.username)) return null;
   return user;
 }
 
 // GET — get a single lesson with full content
-export async function GET(req: NextRequest, { params }: { params: Promise<{ partId: string; lessonId: string }> }) {
-  const user = await requireAdmin(req);
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ partId: string; lessonId: string }> }) {
+  const user = await requireAdmin();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   const { lessonId } = await params;
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ part
 
 // PUT — update a lesson
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ partId: string; lessonId: string }> }) {
-  const user = await requireAdmin(req);
+  const user = await requireAdmin();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   const { partId, lessonId } = await params;
@@ -70,8 +70,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ part
 }
 
 // DELETE — delete a lesson
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ partId: string; lessonId: string }> }) {
-  const user = await requireAdmin(req);
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ partId: string; lessonId: string }> }) {
+  const user = await requireAdmin();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   const { lessonId } = await params;

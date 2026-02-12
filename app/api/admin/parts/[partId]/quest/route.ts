@@ -4,15 +4,15 @@ import { prisma } from "@/lib/db";
 
 const ADMIN_USERS = ["obajali", "admin"];
 
-async function requireAdmin(req: NextRequest) {
-  const user = await getCurrentUser(req);
+async function requireAdmin() {
+  const user = await getCurrentUser();
   if (!user || !ADMIN_USERS.includes(user.username)) return null;
   return user;
 }
 
 // PUT — create or update the quest for a part
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ partId: string }> }) {
-  const user = await requireAdmin(req);
+  const user = await requireAdmin();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   const { partId } = await params;
@@ -57,8 +57,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ part
 }
 
 // DELETE — remove the quest from a part
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ partId: string }> }) {
-  const user = await requireAdmin(req);
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ partId: string }> }) {
+  const user = await requireAdmin();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
   const { partId } = await params;
