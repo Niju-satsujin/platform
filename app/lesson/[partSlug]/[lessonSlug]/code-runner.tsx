@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { CodeEditor } from "@/app/components/code-editor";
+
+const XtermTerminal = dynamic(
+  () => import("@/app/components/lesson/xterm-terminal"),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-full bg-[#0a0a0f] text-gray-600 text-xs">Loading terminal…</div> }
+);
 
 interface TestResult {
   name: string;
@@ -46,7 +52,7 @@ export function CodeRunner({
   const [isRunning, setIsRunning] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [passed, setPassed] = useState(initialPassed);
-  const [activeTab, setActiveTab] = useState<"console" | "tests">("console");
+  const [activeTab, setActiveTab] = useState<"console" | "tests" | "terminal">("console");
   const [consoleHeight, setConsoleHeight] = useState(200);
   const [showSolution, setShowSolution] = useState(false);
   const consoleRef = useRef<HTMLDivElement>(null);
@@ -368,6 +374,17 @@ export function CodeRunner({
               </span>
             )}
           </button>
+          <button
+            onClick={() => setActiveTab("terminal")}
+            className={`px-3 py-1.5 text-[11px] font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === "terminal"
+                ? "text-gray-100 border-green-500"
+                : "text-gray-500 border-transparent hover:text-gray-300"
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-green-500/60" />
+            Terminal
+          </button>
           <div className="flex-1" />
           <button
             onClick={() => {
@@ -381,7 +398,7 @@ export function CodeRunner({
         </div>
 
         {/* Console content */}
-        <div ref={consoleRef} className="flex-1 overflow-auto p-3 font-mono text-xs">
+        <div ref={consoleRef} className="flex-1 overflow-auto p-3 font-mono text-xs relative">
           {activeTab === "console" && (
             <div className="space-y-1">
               {consoleOutput.length === 0 && (
@@ -405,6 +422,12 @@ export function CodeRunner({
                   {line.text}
                 </pre>
               ))}
+            </div>
+          )}
+
+          {activeTab === "terminal" && (
+            <div className="absolute inset-0">
+              <XtermTerminal wsUrl="ws://localhost:3061" />
             </div>
           )}
 
