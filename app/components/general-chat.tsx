@@ -398,7 +398,7 @@ export default function GeneralChat() {
                     {renderMessageContent(msg)}
 
                     {/* Time + actions row */}
-                    <div className={`flex items-center gap-1.5 mt-1 ${isMe ? "justify-end" : "justify-start"}`}>
+                    <div className={`flex items-center gap-2 mt-1 ${isMe ? "justify-end" : "justify-start"}`}>
                       <span className="text-[9px] text-gray-600" title={new Date(msg.createdAt).toLocaleString()}>
                         {formatTime(msg.createdAt)}
                       </span>
@@ -407,7 +407,7 @@ export default function GeneralChat() {
                       {!msg.deleted && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setReplyTo(msg); inputRef.current?.focus(); setTappedMsgId(null); }}
-                          className={`text-[10px] text-gray-600 hover:text-yellow-400 transition-all ${tappedMsgId === msg.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                          className="text-xs text-gray-500 hover:text-yellow-400 transition-colors px-1"
                           title="Reply"
                         >
                           ↩
@@ -418,7 +418,7 @@ export default function GeneralChat() {
                       {isMe && !msg.deleted && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(msg.id); setTappedMsgId(null); }}
-                          className={`text-[10px] text-gray-600 hover:text-red-400 transition-all ${tappedMsgId === msg.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                          className="text-xs text-gray-500 hover:text-red-400 transition-colors px-1"
                           title="Delete"
                         >
                           🗑

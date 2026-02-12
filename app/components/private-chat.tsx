@@ -557,7 +557,7 @@ export default function PrivateChatPage() {
                           isMe ? "bg-blue-500/15 border border-blue-500/20 rounded-tr-sm" : "bg-gray-800/80 border border-gray-700/50 rounded-tl-sm"
                         }`} onClick={() => setTappedMsgId(tappedMsgId === msg.id ? null : msg.id)}>
                           {renderContent(msg)}
-                          <div className={`flex items-center gap-1.5 mt-1 ${isMe ? "justify-end" : "justify-start"}`}>
+                          <div className={`flex items-center gap-2 mt-1 ${isMe ? "justify-end" : "justify-start"}`}>
                             <span className="text-[9px] text-gray-600" title={new Date(msg.createdAt).toLocaleString()}>{formatTime(msg.createdAt)}</span>
                             {/* Read tick for own messages */}
                             {isMe && !msg.deleted && (
@@ -566,10 +566,10 @@ export default function PrivateChatPage() {
                               </span>
                             )}
                             {!msg.deleted && (
-                              <button onClick={(e) => { e.stopPropagation(); setReplyTo(msg); inputRef.current?.focus(); setTappedMsgId(null); }} className={`text-[10px] text-gray-600 hover:text-blue-400 transition-all ${tappedMsgId === msg.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} title="Reply">↩</button>
+                              <button onClick={(e) => { e.stopPropagation(); setReplyTo(msg); inputRef.current?.focus(); setTappedMsgId(null); }} className="text-xs text-gray-500 hover:text-blue-400 transition-colors px-1" title="Reply">↩</button>
                             )}
                             {isMe && !msg.deleted && (
-                              <button onClick={(e) => { e.stopPropagation(); handleDelete(msg.id); setTappedMsgId(null); }} className={`text-[10px] text-gray-600 hover:text-red-400 transition-all ${tappedMsgId === msg.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} title="Delete">🗑</button>
+                              <button onClick={(e) => { e.stopPropagation(); handleDelete(msg.id); setTappedMsgId(null); }} className="text-xs text-gray-500 hover:text-red-400 transition-colors px-1" title="Delete">🗑</button>
                             )}
                           </div>
                         </div>
