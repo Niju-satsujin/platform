@@ -339,9 +339,9 @@ export function CodeRunner({
         <div className="w-8 h-0.5 bg-gray-600 rounded-full" />
       </div>
 
-      {/* Console / Test results panel */}
+      {/* Console / Test results / Terminal panel */}
       <div style={{ height: consoleHeight }} className="flex flex-col shrink-0 bg-gray-950">
-        {/* Console tabs */}
+        {/* Tabs bar */}
         <div className="flex items-center border-b border-gray-700 px-3 shrink-0">
           <button
             onClick={() => setActiveTab("console")}
@@ -386,20 +386,27 @@ export function CodeRunner({
             Terminal
           </button>
           <div className="flex-1" />
-          <button
-            onClick={() => {
-              setConsoleOutput([]);
-              setTestResults([]);
-            }}
-            className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
-          >
-            Clear
-          </button>
+          {activeTab !== "terminal" && (
+            <button
+              onClick={() => {
+                setConsoleOutput([]);
+                setTestResults([]);
+              }}
+              className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
+            >
+              Clear
+            </button>
+          )}
         </div>
 
-        {/* Console content */}
-        <div ref={consoleRef} className="flex-1 overflow-auto p-3 font-mono text-xs relative">
-          {activeTab === "console" && (
+        {/* Tab content — all rendered always, shown/hidden via CSS so xterm stays alive */}
+        <div className="flex-1 min-h-0 relative">
+          {/* Console tab */}
+          <div
+            ref={consoleRef}
+            className="absolute inset-0 overflow-auto p-3 font-mono text-xs"
+            style={{ display: activeTab === "console" ? "block" : "none" }}
+          >
             <div className="space-y-1">
               {consoleOutput.length === 0 && (
                 <p className="text-gray-600 italic">Click &quot;Run&quot; to execute your code, or &quot;Submit&quot; to run tests...</p>
@@ -423,20 +430,17 @@ export function CodeRunner({
                 </pre>
               ))}
             </div>
-          )}
+          </div>
 
-          {activeTab === "terminal" && (
-            <div className="absolute inset-0">
-              <XtermTerminal wsUrl="ws://localhost:3061" />
-            </div>
-          )}
-
-          {activeTab === "tests" && (
+          {/* Tests tab */}
+          <div
+            className="absolute inset-0 overflow-auto p-3 font-mono text-xs"
+            style={{ display: activeTab === "tests" ? "block" : "none" }}
+          >
             <div className="space-y-2">
               {testResults.length === 0 && consoleOutput.length === 0 && (
                 <p className="text-gray-600 italic">Click &quot;Submit&quot; to run tests against your code...</p>
               )}
-              {/* Show compile/runtime errors in tests tab too */}
               {consoleOutput
                 .filter((o) => o.type === "error")
                 .map((line) => (
@@ -501,7 +505,15 @@ export function CodeRunner({
                 </div>
               ))}
             </div>
-          )}
+          </div>
+
+          {/* Terminal tab — always mounted, hidden via CSS to preserve xterm state */}
+          <div
+            className="absolute inset-0"
+            style={{ display: activeTab === "terminal" ? "block" : "none" }}
+          >
+            <XtermTerminal wsUrl="ws://localhost:3061" />
+          </div>
         </div>
       </div>
     </div>

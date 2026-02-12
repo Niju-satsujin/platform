@@ -163,14 +163,6 @@ export default function XtermTerminal({
 
   return (
     <div className="flex flex-col h-full bg-[#0a0a0f] overflow-hidden">
-      {/* Thin terminal header */}
-      <div className="flex items-center justify-between px-3 py-1 bg-gray-900 border-b border-gray-700 shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          <span className="text-xs font-semibold text-gray-400">Terminal</span>
-        </div>
-        <span className="text-[10px] text-gray-600 font-mono">bash</span>
-      </div>
       {/* xterm container */}
       <div ref={containerRef} className="flex-1 min-h-0 p-1" />
     </div>

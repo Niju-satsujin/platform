@@ -59,7 +59,6 @@ export default function TopHeader({
     const items = [...BASE_NAV_ITEMS];
     if (isAdmin) {
       items.push({ label: "Admin", href: "/admin/content", matchPrefix: "/admin/content" });
-      items.push({ label: "IDE", href: "/admin/ide", matchPrefix: "/admin/ide" });
     }
     return items;
   }, [isAdmin]);
