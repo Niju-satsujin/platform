@@ -84,6 +84,7 @@ export default async function RootLayout({
         </Suspense>
         <TopHeader
           isLoggedIn={isLoggedIn}
+          username={user?.username || ""}
           displayName={displayName}
           profileImage={profileImage}
           level={level}

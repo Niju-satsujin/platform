@@ -10,6 +10,7 @@ import LogoutButton from "@/app/components/logout-button";
 
 interface TopHeaderProps {
   isLoggedIn: boolean;
+  username: string;
   displayName: string;
   profileImage: string;
   level: number;
@@ -25,7 +26,7 @@ interface NavItem {
   matchPrefix?: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
+const BASE_NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/", matchPrefix: "/" },
   { label: "Courses", href: "/parts", matchPrefix: "/parts" },
   { label: "Skill Tree", href: "/skill-tree", matchPrefix: "/skill-tree" },
@@ -37,8 +38,11 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Leaderboard", href: "/leaderboard", matchPrefix: "/leaderboard" },
 ];
 
+const ADMIN_USERS = ["obajali", "admin"];
+
 export default function TopHeader({
   isLoggedIn,
+  username,
   displayName,
   profileImage,
   level,
@@ -49,6 +53,14 @@ export default function TopHeader({
 }: TopHeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
+
+  const isAdmin = ADMIN_USERS.includes(username);
+  const NAV_ITEMS = useMemo(() => {
+    const items = [...BASE_NAV_ITEMS];
+    if (isAdmin) items.push({ label: "Admin", href: "/admin/content", matchPrefix: "/admin" });
+    return items;
+  }, [isAdmin]);
+
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
