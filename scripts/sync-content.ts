@@ -126,6 +126,7 @@ async function main() {
           proofRules: JSON.stringify(lesson.proofRules),
           proofRulesJson: JSON.stringify(lesson.proofRules),
           reviewScheduleDays: JSON.stringify(lesson.frontmatter.review_schedule_days),
+          xpReward: lesson.frontmatter.xp,
         },
         create: {
           contentId: lesson.frontmatter.id,
@@ -138,6 +139,7 @@ async function main() {
           proofRules: JSON.stringify(lesson.proofRules),
           proofRulesJson: JSON.stringify(lesson.proofRules),
           reviewScheduleDays: JSON.stringify(lesson.frontmatter.review_schedule_days),
+          xpReward: lesson.frontmatter.xp,
         },
       });
       totalLessons++;

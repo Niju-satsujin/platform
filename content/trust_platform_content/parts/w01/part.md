@@ -1,64 +1,51 @@
 ---
 id: w01
-slug: w01-cli-logger-discipline
-title: CLI & Logger Discipline
+title: "Structured Logger"
 order: 1
-duration: 720
+description: "Build a structured logger from scratch in C++. Learn RAII, enum class, std::chrono, CLI argument parsing, file I/O, input validation, dependency injection, golden file tests, and CI. By Friday you have a standalone library with benchmarks and a quality gate."
 kind: part_intro
+arc: arc-1-networking
 ---
-# Week 01 — CLI + Logger Discipline
+# Week 1 — Structured Logger
 
 ## Big Picture
 
-You are building **trustctl** — your “operator tool” for the next 6 months.
+You are building a **structured logger** — a small library that writes timestamped, tab-separated log entries to a file, and a CLI that reads them back with filters.
 
-Think **kubectl** or **etcdctl**, but for *your* trust system. This is the tool you will use to run commands, inspect state, debug failures, and prove correctness later in the course.
+This is your first C++ project. You already know C (structs, pointers, malloc, FILE*). This week bridges you to C++ by replacing those patterns one at a time.
 
-Why this matters for distributed trust:
-- Trust systems fail in **boring** ways: bad inputs, unclear errors, broken scripts, silent config surprises.
-- A reliable CLI is the *human-to-system contract*. If the contract is sloppy, you cannot debug anything later.
+Why a logger first?
+- Every system you build in the next 6 months will need structured logs.
+- It forces you to learn RAII, enum class, std::string, std::vector, std::chrono, and file I/O — all in a real context.
+- It is small enough to finish in one week, but serious enough to test properly.
 
-Industry analogies:
-- `kubectl` is the control plane remote for Kubernetes.
-- `etcdctl` is the control tool for etcd.
-- `openssl` CLI is a security toolbox (and its errors teach you a lot).
+## What you will build
 
-Links (skim, don’t deep-dive):
-- [Command Line Interface Guidelines](https://clig.dev/)
-- [The Twelve-Factor App — Config](https://12factor.net/config)
-- [sysexits.h exit codes](https://man7.org/linux/man-pages/man3/sysexits.h.3head.html)
+By the end of this week you ship a logger with these properties:
 
-## What are we building?
+- **RAII file management** — the destructor closes the file, you never call fclose manually
+- **Type-safe constants** — enum class replaces #define
+- **Timestamped entries** — std::chrono gives you millisecond-precision UTC timestamps
+- **Tab-separated format** — easy to parse, easy to grep
+- **CLI with filters** — read back entries by level, component, or time range
+- **Input validation** — reject bad data before writing
+- **Specific error codes** — 1xxx for input errors, 2xxx for file errors, 3xxx for parse errors
+- **Request ID generation** — correlate operations across services later
+- **Injectable clock** — swap in a fake clock for deterministic tests
+- **Golden file tests** — byte-for-byte output comparison
+- **CI pipeline** — GitHub Actions runs cmake + ctest on every push
+- **Standalone library** — logger.h compiles without the CLI
+- **Benchmarks** — measure append ops/sec with and without fsync
 
-By the end of this week, you ship **trustctl v0.1** with these properties:
+## Schedule
 
-- **Stable CLI contract**: `--help`, `--version`, predictable outputs.
-- **Safe parsing**: reject dangerous inputs (1KB token limit).
-- **Correct exit codes**: scripts can trust your tool.
-- **Signal hygiene**: Ctrl+C exits cleanly with 130.
-- **Structured logs**: you can debug the future distributed system.
-- **Regression harness**: 12 tests that prevent backsliding.
+- **Monday** (lessons 1–4): C++ basics + first working logger
+- **Tuesday** (lessons 5–8): Read back entries, filters, error handling, fsync
+- **Wednesday** (lessons 9–12): Input validation, error codes, request IDs, stderr discipline
+- **Thursday** (lessons 13–16): Injectable clock, golden file tests, full test suite, CI
+- **Friday** (lessons 17–18): Standalone library proof, benchmarks
+- **Saturday** (lessons 19–20): Clean project layout, quality gate
 
-### Testing mode (important)
+## Done when
 
-To make tests reliable, `trustctl` supports a global flag:
-
-- `--testing` → deterministic output (no random IDs, stable timestamps, stable paths).
-
-This prevents “tests not working” because of changing timestamps or machine-specific paths.
-
-## Your workflow
-
-You will edit a real codebase (not a throwaway file):
-
-- `starter/trustctl/src/main.cpp`
-- `starter/trustctl/tests/run.sh`
-
-Each lesson adds one capability and expands tests.
-
-**Done when (Week 01):** `./tests/run.sh` passes all 12 tests.
-
-Next week relies on this:
-- Week 02 networking exercises will call `trustctl` as the control tool (like `kubectl`).
-- Week 11–12 distributed debugging will rely on your structured logs.
-
+All 20 lessons are complete, all tests pass in CI, and the quality gate checklist is green.

@@ -27,10 +27,12 @@ export const LessonFrontmatterSchema = z.object({
     })
     .default({}),
   review_schedule_days: z.array(z.coerce.number().int().positive()).default([1, 3, 7, 14]),
+  xp: z.coerce.number().int().positive().optional(),
 }).transform((data) => ({
   ...data,
   duration_minutes: data.duration_minutes ?? data.duration_min ?? 10,
   kind: normalizeContentKind(data.kind ?? data.type, "lesson"),
+  xp: data.xp ?? 100,
 }));
 
 export const PartFrontmatterSchema = z.object({

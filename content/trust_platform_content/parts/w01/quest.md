@@ -1,104 +1,44 @@
 ---
 id: w01-quest
-title: "Boss (7/7): Ship trustctl v0.1"
-order: 7
-duration: 240
-kind: boss
+title: "Week 1 Boss: Ship the Structured Logger"
 part: w01
+kind: boss
+proof:
+  type: paste
+  instructions: "Paste: (1) full ctest output showing all tests pass, (2) benchmark output showing ops/sec with and without fsync, (3) your 8-point quality gate checklist with each item marked PASS."
+  regex_patterns:
+    - "tests? passed"
+    - "ops/sec"
+    - "PASS"
 ---
-# Boss Project (7/7): Ship trustctl v0.1 (Operator‑Ready)
+# Week 1 Boss: Ship the Structured Logger
 
 ## Goal
 
-Ship **trustctl v0.1** as a tool you will reuse for months.
-This is not a toy. It must be predictable, testable, and safe.
+Prove your logger is complete, tested, and production-quality. This is not a toy — it becomes the logging backbone for every system you build in the next 5 months.
 
----
+## Requirements
 
-## What you ship
+You must demonstrate all of these:
 
-Inside `starter/trustctl/`:
+1. **Clean build** — `cmake --build build` completes with zero warnings
+2. **All tests pass** — `cd build && ctest` shows every test green, run it 3 times to prove determinism
+3. **Benchmark recorded** — append ops/sec measured with fsync off and fsync on
+4. **Standalone proof** — a test that includes only `logger.h` and compiles without CLI code
+5. **Quality gate** — all 8 checkpoints from lesson 20 are PASS
 
-- `src/main.cpp` (your implementation)
-- `tests/run.sh` + `tests/helpers.sh`
-- `Makefile`
+## Verify
 
-And your CLI supports:
-
-- `--help`, `--version`
-- `config show`
-- `init`
-- `wait`
-- `--testing` deterministic mode
-- structured logs to stderr
-- safe parsing (1KB token cap)
-- correct exit codes (0, 64, 130)
-
----
-
-## Practice (integration)
-
-### Step 1 — Clean build
-
-Run:
 ```bash
-cd starter/trustctl
-make clean
-make build
+cmake --build build 2>&1 | tail -5
+cd build && ctest --output-on-failure
+cd build && ctest --output-on-failure
+cd build && ctest --output-on-failure
+./build/logger_benchmark
 ```
 
-Expected:
-- build succeeds with no warnings you ignore
+All three ctest runs must produce identical output.
 
----
+## Done When
 
-### Step 2 — Run full regression
-
-Run:
-```bash
-make test
-```
-
-Expected:
-- **12/12 PASS**
-
----
-
-### Step 3 — Operator demo (manual)
-
-Run:
-```bash
-./trustctl --help | head -n 15
-./trustctl --version
-./trustctl --testing config show
-rm -rf ./.trustctl-test
-./trustctl --testing init
-./trustctl --testing wait
-```
-
-Expected:
-- help/version look clean
-- config show prints `trust_home=` and `source=`
-- init creates directories
-- wait exits 130 on Ctrl+C
-
----
-
-## Done when
-
-- `make test` passes all 12 tests
-- stdout is clean (command outputs only)
-- stderr contains errors/logs only
-- behavior is stable across runs (`--testing`)
-
----
-
-## Proof
-
-Submit:
-1) Screenshot or paste of `make test` showing `12/12 PASS`
-2) Paste `./trustctl --testing config show` output
-3) Paste `find ./.trustctl-test -maxdepth 2 -type d | sort`
-
-Optional (strong):
-- Git commit hash that contains the finished Week 01 tool.
+You can paste the terminal output and every test passes, the benchmark numbers are recorded, and the quality gate is fully green.
