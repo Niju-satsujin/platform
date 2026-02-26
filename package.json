@@ -13,6 +13,7 @@
     "test": "tsx --test tests/*.test.ts",
     "content:sync": "npx tsx scripts/sync-content.ts",
     "content:validate": "npx tsx scripts/validate-content.ts",
+    "content:test": "npx tsx scripts/validate-lessons.ts",
     "visuals:sync": "npx tsx scripts/sync-visuals.ts",
     "visuals:validate": "npx tsx scripts/validate-visuals.ts",
     "db:push": "npx prisma db push",

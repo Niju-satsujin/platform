@@ -858,13 +858,26 @@ export function CodeEditorPanel({
                 {syncingLocal ? "↻ Syncing" : "⇅ Sync"}
               </button>
             )}
+            {workspaceMode === "server" && workspaceDir && (
+              <button
+                type="button"
+                onClick={() => {
+                  const normalizedPath = workspaceDir.replace(/\\/g, "/");
+                  window.open(`vscode://file/${normalizedPath}`);
+                }}
+                className="editor-btn text-[11px]"
+                title="Open workspace folder in VS Code"
+              >
+                VS Code
+              </button>
+            )}
             <button
               type="button"
               onClick={async () => {
                 const dirty = openFiles.filter((f) => f.dirty);
                 if (dirty.length > 0) {
                   for (const file of dirty) {
-                    // Flush pending edits before running make test.
+                    // Flush pending edits before running.
                     await saveFile(file.path, file.content);
                   }
                 }
@@ -877,10 +890,10 @@ export function CodeEditorPanel({
                     return;
                   }
                 }
-                terminalRef.current?.sendCommand("make test");
+                terminalRef.current?.sendCommand(starter.runCommand || "make test");
               }}
               className="editor-btn text-[11px]"
-              title="Run make test in the embedded terminal"
+              title="Build and run in the embedded terminal"
               disabled={!workspaceDir || syncingLocal}
             >
               🧪 Testing
