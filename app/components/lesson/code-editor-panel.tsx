@@ -299,20 +299,30 @@ export function CodeEditorPanel({
       const tree = await refreshLocalTree();
       const filePaths = collectFilePaths(tree);
 
+      let syncErrors = 0;
       for (const relativePath of filePaths) {
         const handle = localFileMapRef.current.get(relativePath);
         if (!handle) continue;
-        const file = await handle.getFile();
-        const content = await file.text();
-        const serverPath = `${workspaceDir}/${relativePath}`;
-        const res = await fetch("/api/fs/write", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ path: serverPath, content }),
-        });
-        if (!res.ok) {
-          throw new Error(`Failed syncing file: ${relativePath}`);
+        try {
+          const file = await handle.getFile();
+          const content = await file.text();
+          const serverPath = `${workspaceDir}/${relativePath}`;
+          const res = await fetch("/api/fs/write", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: serverPath, content }),
+          });
+          if (!res.ok) {
+            console.warn(`Skipping sync for ${relativePath}: server returned ${res.status}`);
+            syncErrors++;
+          }
+        } catch (err) {
+          console.warn(`Skipping sync for ${relativePath}:`, err);
+          syncErrors++;
         }
+      }
+      if (syncErrors > 0) {
+        console.warn(`${syncErrors} file(s) failed to sync`);
       }
     } finally {
       setSyncingLocal(false);
@@ -881,13 +891,13 @@ export function CodeEditorPanel({
                     await saveFile(file.path, file.content);
                   }
                 }
-                if (workspaceMode === "local") {
+                if (workspaceMode === "local" && workspaceDir) {
                   try {
                     await syncLocalToServerWorkspace();
                   } catch (err) {
-                    const msg = err instanceof Error ? err.message : "Sync failed";
-                    window.alert(msg);
-                    return;
+                    // Sync failed but don't block the run — the terminal
+                    // can still execute if the workspace was previously initialised.
+                    console.warn("Sync before run failed:", err);
                   }
                 }
                 terminalRef.current?.sendCommand(starter.runCommand || "make test");
