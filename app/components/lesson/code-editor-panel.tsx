@@ -749,39 +749,76 @@ export function CodeEditorPanel({
     ? Boolean(localRootHandleRef.current)
     : Boolean(workspaceDir);
 
-  /* ── Run test via Piston cloud API, validate output, submit proof ── */
+  /* ── Run test via Judge0 cloud API, validate output, submit proof ── */
   const runTest = useCallback(async () => {
-    // Collect all code files from the editor
-    const mainFile = openFiles.find((f) => f.name === starter.mainFile)
-      || openFiles.find((f) => f.name.endsWith(".cpp"))
-      || openFiles[0];
+    // Collect all code files — prefer open editor tabs (latest content),
+    // but also read from local folder for files not open in a tab.
+    const allFiles = new Map<string, string>();
 
-    if (!mainFile) {
-      setTestResult({ status: "error", message: "No code file open to test." });
+    // 1. Read all source files from the local folder handle (if connected)
+    const fileMap = localFileMapRef.current;
+    if (fileMap.size > 0) {
+      const codeExts = [".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hxx"];
+      for (const [relPath, handle] of fileMap.entries()) {
+        const ext = relPath.slice(relPath.lastIndexOf(".")).toLowerCase();
+        if (codeExts.includes(ext)) {
+          try {
+            const file = await handle.getFile();
+            allFiles.set(relPath, await file.text());
+          } catch { /* skip unreadable */ }
+        }
+      }
+    }
+
+    // 2. Override with content from open editor tabs (may have unsaved edits)
+    for (const f of openFiles) {
+      if (!f.name.endsWith("CMakeLists.txt") && !f.name.endsWith(".txt") && !f.name.endsWith(".exe")) {
+        allFiles.set(f.name, f.content);
+      }
+    }
+
+    // 3. Also include starter files that aren't in the local folder
+    if (allFiles.size === 0) {
+      for (const [name, content] of Object.entries(starter.files)) {
+        if (name !== "CMakeLists.txt") {
+          allFiles.set(name, content);
+        }
+      }
+      // Override with open tab content
+      for (const f of openFiles) {
+        if (!f.name.endsWith("CMakeLists.txt")) {
+          allFiles.set(f.name, f.content);
+        }
+      }
+    }
+
+    // 4. Find the main source file
+    const mainFileName = starter.mainFile || "main.cpp";
+    const mainCode = allFiles.get(mainFileName)
+      || Array.from(allFiles.entries()).find(([n]) => n.endsWith(".cpp"))?.[1];
+
+    if (!mainCode?.trim()) {
+      setTestResult({ status: "error", message: "No C++ code found to test." });
       return;
     }
 
-    // Use the latest (potentially unsaved) content from the editor
-    const code = mainFile.content;
-    if (!code.trim()) {
-      setTestResult({ status: "error", message: "Code is empty." });
-      return;
+    // 5. Build extra files list (everything except main)
+    const extraFiles: { name: string; content: string }[] = [];
+    for (const [name, content] of allFiles.entries()) {
+      if (name !== mainFileName && content !== mainCode) {
+        extraFiles.push({ name, content });
+      }
     }
-
-    // Gather extra files (headers, etc.) — exclude the main file
-    const extraFiles = openFiles
-      .filter((f) => f.path !== mainFile.path && !f.name.endsWith("CMakeLists.txt"))
-      .map((f) => ({ name: f.name, content: f.content }));
 
     setTestResult({ status: "running", message: "Compiling and running..." });
 
     try {
-      // 1. Send code to Piston API via /api/execute
+      // 6. Send code to Judge0 via /api/execute
       const execRes = await fetch("/api/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code,
+          code: mainCode,
           language: "cpp",
           files: extraFiles,
           stdin: "",
@@ -888,7 +925,7 @@ export function CodeEditorPanel({
         message: err instanceof Error ? err.message : "Unexpected error",
       });
     }
-  }, [openFiles, starter.mainFile, proofRules, mode, lessonId, partSlug, lessonSlug]);
+  }, [openFiles, starter.mainFile, starter.files, proofRules, mode, lessonId, partSlug, lessonSlug]);
 
   return (
     <div className="flex h-full">

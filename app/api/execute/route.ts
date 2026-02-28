@@ -112,15 +112,69 @@ export async function POST(req: NextRequest) {
 
     const languageId = LANG_IDS[language] || LANG_IDS["cpp"];
 
-    // For multi-file C++ projects, combine headers into the main source
-    // (Judge0 only supports single-file submissions on the free tier)
+    // Judge0 free tier only compiles a single source file.
+    // Inline all #include "local_file" directives with the actual content
+    // from the uploaded extra files so compilation succeeds.
     let fullCode = code;
     if (files.length > 0) {
-      const headerContent = files
-        .map((f) => `// === ${f.name} ===\n${f.content}`)
-        .join("\n\n");
-      // Insert headers before the main code
-      fullCode = headerContent + "\n\n// === main ===\n" + code;
+      const fileMap = new Map(files.map((f) => [f.name, f.content]));
+
+      // Replace #include "filename" with the file's content (if we have it).
+      // Try exact match first, then case-insensitive, then basename-only match.
+      fullCode = fullCode.replace(
+        /^(\s*)#include\s*"([^"]+)"/gm,
+        (_match, indent, includePath) => {
+          // Try exact match
+          let content = fileMap.get(includePath);
+          let matchedKey = includePath;
+
+          // Try case-insensitive match
+          if (content === undefined) {
+            const lower = includePath.toLowerCase();
+            for (const [key, val] of fileMap.entries()) {
+              if (key.toLowerCase() === lower) {
+                content = val;
+                matchedKey = key;
+                break;
+              }
+            }
+          }
+
+          // Try basename match (e.g. #include "src/logger.hpp" vs "logger.hpp")
+          if (content === undefined) {
+            const basename = includePath.split("/").pop()?.toLowerCase() || "";
+            for (const [key, val] of fileMap.entries()) {
+              if (key.toLowerCase() === basename || key.split("/").pop()?.toLowerCase() === basename) {
+                content = val;
+                matchedKey = key;
+                break;
+              }
+            }
+          }
+
+          if (content !== undefined) {
+            fileMap.delete(matchedKey);
+            return `${indent}// --- inlined: ${matchedKey} ---\n${content}\n// --- end: ${matchedKey} ---`;
+          }
+          return _match;
+        }
+      );
+
+      // Also inline .cpp files that weren't #included (e.g. Logger.cpp)
+      const remaining = Array.from(fileMap.entries())
+        .filter(([name]) => name.endsWith(".cpp") || name.endsWith(".cc") || name.endsWith(".cxx"));
+      if (remaining.length > 0) {
+        const extras = remaining
+          .map(([name, content]) => `// --- inlined: ${name} ---\n${content}\n// --- end: ${name} ---`)
+          .join("\n\n");
+        // Insert extra .cpp files before main() if possible, otherwise prepend
+        const mainIdx = fullCode.indexOf("int main");
+        if (mainIdx > 0) {
+          fullCode = fullCode.slice(0, mainIdx) + extras + "\n\n" + fullCode.slice(mainIdx);
+        } else {
+          fullCode = extras + "\n\n" + fullCode;
+        }
+      }
     }
 
     // Submit to Judge0
