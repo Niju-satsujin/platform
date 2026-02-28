@@ -167,6 +167,19 @@ interface OpenFile {
   dirty: boolean;
 }
 
+interface ProofRulesInput {
+  mode: string;
+  regexPatterns: string[];
+  instructions: string;
+}
+
+interface TestResult {
+  status: "running" | "passed" | "failed" | "error";
+  message: string;
+  output?: string;
+  xpAwarded?: number;
+}
+
 interface CodeEditorPanelProps {
   lessonId: string;
   partSlug: string;
@@ -174,6 +187,7 @@ interface CodeEditorPanelProps {
   starter: StarterFiles;
   mode: "lesson" | "quest";
   passed: boolean;
+  proofRules?: ProofRulesInput;
 }
 
 export function CodeEditorPanel({
@@ -181,8 +195,9 @@ export function CodeEditorPanel({
   partSlug,
   lessonSlug,
   starter,
-  mode: _mode,
-  passed: _passed,
+  mode,
+  passed: initialPassed,
+  proofRules,
 }: CodeEditorPanelProps) {
   const hiddenRootFileNames = partSlug === "w01"
     ? ["Makefile", "CMakeLists.txt"]
@@ -200,6 +215,8 @@ export function CodeEditorPanel({
   const [syncingLocal, setSyncingLocal] = useState(false);
   const [ready, setReady] = useState(false);
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [lessonPassed, setLessonPassed] = useState(initialPassed);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const initRef = useRef(false);
   const terminalRef = useRef<XtermTerminalHandle>(null);
@@ -732,6 +749,147 @@ export function CodeEditorPanel({
     ? Boolean(localRootHandleRef.current)
     : Boolean(workspaceDir);
 
+  /* ── Run test via Piston cloud API, validate output, submit proof ── */
+  const runTest = useCallback(async () => {
+    // Collect all code files from the editor
+    const mainFile = openFiles.find((f) => f.name === starter.mainFile)
+      || openFiles.find((f) => f.name.endsWith(".cpp"))
+      || openFiles[0];
+
+    if (!mainFile) {
+      setTestResult({ status: "error", message: "No code file open to test." });
+      return;
+    }
+
+    // Use the latest (potentially unsaved) content from the editor
+    const code = mainFile.content;
+    if (!code.trim()) {
+      setTestResult({ status: "error", message: "Code is empty." });
+      return;
+    }
+
+    // Gather extra files (headers, etc.) — exclude the main file
+    const extraFiles = openFiles
+      .filter((f) => f.path !== mainFile.path && !f.name.endsWith("CMakeLists.txt"))
+      .map((f) => ({ name: f.name, content: f.content }));
+
+    setTestResult({ status: "running", message: "Compiling and running..." });
+
+    try {
+      // 1. Send code to Piston API via /api/execute
+      const execRes = await fetch("/api/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          language: "cpp",
+          files: extraFiles,
+          stdin: "",
+        }),
+      });
+
+      const result = await execRes.json();
+
+      if (!execRes.ok || !result.success) {
+        const phase = result.phase === "compile" ? "Compilation" : "Runtime";
+        setTestResult({
+          status: "failed",
+          message: `${phase} error`,
+          output: result.error || result.stderr || "Unknown error",
+        });
+        return;
+      }
+
+      const fullOutput = (result.stdout || "") + "\n" + (result.stderr || "");
+
+      // 2. Validate output against proof regex patterns
+      const patterns = proofRules?.regexPatterns || [];
+      let proofPassed = true;
+      let validationMessage = "Code compiled and ran successfully!";
+
+      if (patterns.length > 0) {
+        const checks = patterns.map((p: string) => {
+          try {
+            return { pattern: p, matched: new RegExp(p, "im").test(fullOutput) };
+          } catch {
+            return { pattern: p, matched: false };
+          }
+        });
+        const matchedCount = checks.filter((c: { matched: boolean }) => c.matched).length;
+        proofPassed = matchedCount === checks.length;
+
+        if (proofPassed) {
+          validationMessage = `All ${checks.length} check(s) passed!`;
+        } else {
+          const missing = checks
+            .filter((c: { matched: boolean }) => !c.matched)
+            .map((c: { pattern: string }) => c.pattern);
+          validationMessage = `${matchedCount}/${checks.length} checks passed. Missing: ${missing.join(", ")}`;
+        }
+      }
+
+      if (!proofPassed) {
+        setTestResult({
+          status: "failed",
+          message: validationMessage,
+          output: fullOutput.slice(-500),
+        });
+        return;
+      }
+
+      // 3. Auto-submit proof to earn XP
+      try {
+        const formData = new FormData();
+        if (mode === "quest") {
+          formData.set("questId", lessonId);
+          formData.set("partSlug", partSlug);
+        } else {
+          formData.set("lessonId", lessonId);
+          formData.set("partSlug", partSlug);
+          formData.set("lessonSlug", lessonSlug);
+        }
+        formData.set("pastedText", fullOutput.slice(-2000));
+        formData.set("manualPass", "true");
+
+        const endpoint = mode === "quest"
+          ? "/api/submissions/quest"
+          : "/api/submissions/lesson";
+        const subRes = await fetch(endpoint, { method: "POST", body: formData });
+        const subData = await subRes.json();
+
+        if (subRes.ok && (subData.status === "passed" || subData.status === "pending")) {
+          setLessonPassed(true);
+          setTestResult({
+            status: "passed",
+            message: validationMessage,
+            output: fullOutput.slice(-300),
+            xpAwarded: subData.xpAwarded || 0,
+          });
+        } else {
+          // Tests passed but submission had an issue
+          setTestResult({
+            status: "passed",
+            message: `${validationMessage} (${subData.message || "proof submitted"})`,
+            output: fullOutput.slice(-300),
+            xpAwarded: subData.xpAwarded || 0,
+          });
+        }
+      } catch {
+        // Tests passed even if submission fails
+        setTestResult({
+          status: "passed",
+          message: `${validationMessage} (could not submit proof — are you logged in?)`,
+          output: fullOutput.slice(-300),
+        });
+      }
+    } catch (err) {
+      setTestResult({
+        status: "error",
+        message: err instanceof Error ? err.message : "Unexpected error",
+      });
+    }
+  }, [openFiles, starter.mainFile, proofRules, mode, lessonId, partSlug, lessonSlug]);
+
   return (
     <div className="flex h-full">
       {/* ── File tree sidebar ── */}
@@ -771,7 +929,7 @@ export function CodeEditorPanel({
       )}
 
       {/* ── Editor + terminal area ── */}
-      <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex flex-col flex-1 min-w-0 relative">
         {/* Tab bar */}
         <div className="flex items-center border-b border-gray-700 bg-gray-900 shrink-0">
           {/* Tree toggle */}
@@ -883,31 +1041,16 @@ export function CodeEditorPanel({
             )}
             <button
               type="button"
-              onClick={async () => {
-                const dirty = openFiles.filter((f) => f.dirty);
-                if (dirty.length > 0) {
-                  for (const file of dirty) {
-                    // Flush pending edits before running.
-                    await saveFile(file.path, file.content);
-                  }
-                }
-                if (workspaceMode === "local" && workspaceDir) {
-                  try {
-                    await syncLocalToServerWorkspace();
-                  } catch (err) {
-                    // Sync failed but don't block the run — the terminal
-                    // can still execute if the workspace was previously initialised.
-                    console.warn("Sync before run failed:", err);
-                  }
-                }
-                terminalRef.current?.sendCommand(starter.runCommand || "make test");
-              }}
+              onClick={runTest}
               className="editor-btn text-[11px]"
-              title="Build and run in the embedded terminal"
-              disabled={!workspaceDir || syncingLocal}
+              title="Build, test, and validate — awards XP on pass"
+              disabled={openFiles.length === 0 || testResult?.status === "running"}
             >
-              🧪 Testing
+              {testResult?.status === "running" ? "⏳ Running..." : "🧪 Testing"}
             </button>
+            {lessonPassed && (
+              <span className="text-[10px] text-green-400 font-semibold">Passed</span>
+            )}
             {(saving || syncingLocal) && (
               <span className="text-[10px] text-gray-500">
                 {syncingLocal ? "syncing…" : "saving…"}
@@ -1012,6 +1155,69 @@ export function CodeEditorPanel({
             )}
           </Panel>
         </Group>
+
+        {/* ── Test Result Overlay ── */}
+        {testResult && testResult.status !== "running" && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className={`
+              w-[420px] max-w-[90%] rounded-2xl border p-6 shadow-2xl
+              ${testResult.status === "passed"
+                ? "bg-green-950/90 border-green-500/40"
+                : testResult.status === "failed"
+                  ? "bg-red-950/90 border-red-500/40"
+                  : "bg-yellow-950/90 border-yellow-500/40"
+              }
+            `}>
+              {/* Status icon + title */}
+              <div className="text-center mb-4">
+                <div className="text-5xl mb-2">
+                  {testResult.status === "passed" ? "✅" : testResult.status === "failed" ? "❌" : "⚠️"}
+                </div>
+                <h3 className={`text-xl font-bold ${
+                  testResult.status === "passed" ? "text-green-300" : testResult.status === "failed" ? "text-red-300" : "text-yellow-300"
+                }`}>
+                  {testResult.status === "passed" ? "PASSED" : testResult.status === "failed" ? "FAILED" : "ERROR"}
+                </h3>
+              </div>
+
+              {/* XP award */}
+              {testResult.status === "passed" && testResult.xpAwarded !== undefined && testResult.xpAwarded > 0 && (
+                <div className="text-center mb-3">
+                  <span className="inline-block px-4 py-1.5 rounded-full bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 font-bold text-lg">
+                    +{testResult.xpAwarded} XP
+                  </span>
+                </div>
+              )}
+
+              {/* Message */}
+              <p className="text-sm text-gray-300 text-center mb-3">
+                {testResult.message}
+              </p>
+
+              {/* Output preview */}
+              {testResult.output && (
+                <pre className="text-xs text-gray-400 bg-black/50 rounded-lg p-3 max-h-32 overflow-auto font-mono whitespace-pre-wrap mb-4">
+                  {testResult.output.trim()}
+                </pre>
+              )}
+
+              {/* Dismiss */}
+              <div className="flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTestResult(null)}
+                  className={`px-5 py-2 rounded-lg font-semibold text-sm transition-colors ${
+                    testResult.status === "passed"
+                      ? "bg-green-600 hover:bg-green-500 text-white"
+                      : "bg-gray-700 hover:bg-gray-600 text-gray-200"
+                  }`}
+                >
+                  {testResult.status === "passed" ? "Continue" : "Try Again"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

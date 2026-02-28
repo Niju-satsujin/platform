@@ -120,6 +120,11 @@ export default async function LessonPage({
           starter={starter}
           heroVisual={heroVisual}
           mode="lesson"
+          proofRules={{
+            mode: rules.mode || "manual_or_regex",
+            regexPatterns: rules.regexPatterns || rules.regex_patterns || rules.patterns || [],
+            instructions: rules.instructions || "Submit proof for review.",
+          }}
         />
       </div>
     </div>

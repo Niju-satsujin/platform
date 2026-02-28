@@ -23,6 +23,7 @@ interface LessonSplitViewProps {
   starter: StarterFiles;
   heroVisual?: VisualData | null;
   mode: "lesson" | "quest";
+  proofRules?: { mode: string; regexPatterns: string[]; instructions: string };
 }
 
 export function LessonSplitView(props: LessonSplitViewProps) {
@@ -53,6 +54,7 @@ export function LessonSplitView(props: LessonSplitViewProps) {
           starter={props.starter}
           mode={props.mode}
           passed={props.passed}
+          proofRules={props.proofRules}
         />
       }
     />

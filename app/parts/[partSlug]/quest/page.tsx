@@ -80,6 +80,11 @@ export default async function PartQuestPage({
           contentHtml={contentHtml}
           starter={starter}
           mode="quest"
+          proofRules={{
+            mode: proofRules.mode || "manual_or_regex",
+            regexPatterns: proofRules.regexPatterns || proofRules.regex_patterns || proofRules.patterns || [],
+            instructions: proofRules.instructions || "Submit proof for review.",
+          }}
         />
       </div>
     </div>

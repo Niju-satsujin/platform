@@ -18,6 +18,13 @@ const ALLOWED_COMMANDS = new Set([
   "make clean",
 ]);
 
+/** Commands that start with these prefixes are also allowed. */
+const ALLOWED_PREFIXES = [
+  "cmake ",
+  "g++ ",
+  "make ",
+];
+
 function isWithin(parent: string, target: string): boolean {
   const rel = path.relative(parent, target);
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
@@ -137,7 +144,16 @@ export async function POST(req: NextRequest) {
     if (!path.isAbsolute(cwd)) {
       return NextResponse.json({ error: "'cwd' must be absolute" }, { status: 400 });
     }
-    if (!ALLOWED_COMMANDS.has(command)) {
+    // For chained commands (e.g. "cmake -B build && cmake --build build && ./build/main"),
+    // validate each sub-command individually.
+    const subCommands = command.split("&&").map((s) => s.trim());
+    const isAllowed = subCommands.every(
+      (sub) =>
+        ALLOWED_COMMANDS.has(sub) ||
+        ALLOWED_PREFIXES.some((p) => sub.startsWith(p)) ||
+        sub.startsWith("./build/") // allow running built executables
+    );
+    if (!isAllowed) {
       return NextResponse.json(
         { error: `Command not allowed: ${command}` },
         { status: 400 }
