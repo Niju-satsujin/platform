@@ -751,76 +751,126 @@ export function CodeEditorPanel({
 
   /* ── Run test via Judge0 cloud API, validate output, submit proof ── */
   const runTest = useCallback(async () => {
-    // Collect all code files — prefer open editor tabs (latest content),
-    // but also read from local folder for files not open in a tab.
+    // Collect ALL code files and inline them into a single source for Judge0.
     const allFiles = new Map<string, string>();
+    const codeExts = [".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hxx"];
+    const isCode = (n: string) => codeExts.some((e) => n.toLowerCase().endsWith(e));
 
-    // 1. Read all source files from the local folder handle (if connected)
-    const fileMap = localFileMapRef.current;
-    if (fileMap.size > 0) {
-      const codeExts = [".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hxx"];
-      for (const [relPath, handle] of fileMap.entries()) {
-        const ext = relPath.slice(relPath.lastIndexOf(".")).toLowerCase();
-        if (codeExts.includes(ext)) {
-          try {
-            const file = await handle.getFile();
-            allFiles.set(relPath, await file.text());
-          } catch { /* skip unreadable */ }
+    // 1. Read source files from the local folder handles (File System Access API)
+    const localMap = localFileMapRef.current;
+    if (localMap.size > 0) {
+      for (const [relPath, handle] of localMap.entries()) {
+        if (!isCode(relPath)) continue;
+        try {
+          const file = await handle.getFile();
+          const text = await file.text();
+          if (text.trim()) allFiles.set(relPath, text);
+        } catch {
+          // permission expired — skip
         }
       }
     }
 
-    // 2. Override with content from open editor tabs (may have unsaved edits)
-    for (const f of openFiles) {
-      if (!f.name.endsWith("CMakeLists.txt") && !f.name.endsWith(".txt") && !f.name.endsWith(".exe")) {
-        allFiles.set(f.name, f.content);
-      }
-    }
-
-    // 3. Also include starter files that aren't in the local folder
+    // 2. Fallback: use starter template files if nothing from local
     if (allFiles.size === 0) {
       for (const [name, content] of Object.entries(starter.files)) {
-        if (name !== "CMakeLists.txt") {
-          allFiles.set(name, content);
-        }
+        if (isCode(name)) allFiles.set(name, content);
       }
-      // Override with open tab content
-      for (const f of openFiles) {
-        if (!f.name.endsWith("CMakeLists.txt")) {
-          allFiles.set(f.name, f.content);
+    }
+
+    // 3. Override with open editor tabs (latest unsaved edits always win)
+    for (const f of openFiles) {
+      if (isCode(f.name)) allFiles.set(f.name, f.content);
+    }
+
+    // 4. Find the main .cpp file
+    const mainFileName = starter.mainFile || "main.cpp";
+    let mainCode = allFiles.get(mainFileName);
+    let mainKey = mainFileName;
+    if (!mainCode) {
+      for (const [name, content] of allFiles.entries()) {
+        if (name.toLowerCase().endsWith(".cpp")) {
+          mainCode = content;
+          mainKey = name;
+          break;
         }
       }
     }
 
-    // 4. Find the main source file
-    const mainFileName = starter.mainFile || "main.cpp";
-    const mainCode = allFiles.get(mainFileName)
-      || Array.from(allFiles.entries()).find(([n]) => n.endsWith(".cpp"))?.[1];
-
     if (!mainCode?.trim()) {
-      setTestResult({ status: "error", message: "No C++ code found to test." });
+      setTestResult({
+        status: "error",
+        message: "No C++ code found. Open a .cpp file or connect a local folder.",
+      });
       return;
     }
 
-    // 5. Build extra files list (everything except main)
-    const extraFiles: { name: string; content: string }[] = [];
+    // 5. Inline #include "file" directives and extra .cpp files into one source.
+    //    Judge0 only compiles a single file — we must merge everything client-side.
+    const headerMap = new Map<string, string>();
     for (const [name, content] of allFiles.entries()) {
-      if (name !== mainFileName && content !== mainCode) {
-        extraFiles.push({ name, content });
+      if (name !== mainKey) headerMap.set(name, content);
+    }
+
+    let merged = mainCode;
+
+    // Replace #include "local_file" with actual content
+    merged = merged.replace(
+      /^(\s*)#include\s*"([^"]+)"/gm,
+      (_match: string, indent: string, incName: string) => {
+        // Try exact, case-insensitive, and basename match
+        let found: string | undefined;
+        let foundKey = "";
+        for (const [key, val] of headerMap.entries()) {
+          const keyBase = key.split("/").pop()?.toLowerCase() || key.toLowerCase();
+          if (key === incName || key.toLowerCase() === incName.toLowerCase() || keyBase === incName.toLowerCase()) {
+            found = val;
+            foundKey = key;
+            break;
+          }
+        }
+        if (found !== undefined) {
+          headerMap.delete(foundKey);
+          // Strip include guards and #pragma once from inlined headers
+          const cleaned = found
+            .replace(/^\s*#pragma\s+once\s*/m, "")
+            .replace(/^\s*#ifndef\s+\w+\s*\n\s*#define\s+\w+\s*/m, "")
+            .replace(/\n\s*#endif\s*\/?\/?[^\n]*\s*$/, "");
+          return `${indent}// --- inlined: ${foundKey} ---\n${cleaned}\n// --- end: ${foundKey} ---`;
+        }
+        return _match;
+      }
+    );
+
+    // Insert remaining .cpp files before int main()
+    const extraCpps = Array.from(headerMap.entries())
+      .filter(([n]) => n.endsWith(".cpp") || n.endsWith(".cc") || n.endsWith(".cxx"));
+    if (extraCpps.length > 0) {
+      const extras = extraCpps
+        .map(([n, c]) => `// --- inlined: ${n} ---\n${c}\n// --- end: ${n} ---`)
+        .join("\n\n");
+      const mainIdx = merged.indexOf("int main");
+      if (mainIdx > 0) {
+        merged = merged.slice(0, mainIdx) + "\n" + extras + "\n\n" + merged.slice(mainIdx);
+      } else {
+        merged = extras + "\n\n" + merged;
       }
     }
 
-    setTestResult({ status: "running", message: "Compiling and running..." });
+    setTestResult({
+      status: "running",
+      message: `Compiling ${allFiles.size} file(s)...`,
+    });
 
     try {
-      // 6. Send code to Judge0 via /api/execute
+      // 6. Send the single merged source to Judge0 via /api/execute
       const execRes = await fetch("/api/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: mainCode,
+          code: merged,
           language: "cpp",
-          files: extraFiles,
+          files: [], // already inlined
           stdin: "",
         }),
       });
@@ -925,7 +975,7 @@ export function CodeEditorPanel({
         message: err instanceof Error ? err.message : "Unexpected error",
       });
     }
-  }, [openFiles, starter.mainFile, starter.files, proofRules, mode, lessonId, partSlug, lessonSlug]);
+  }, [openFiles, starter.mainFile, starter.files, proofRules, mode, lessonId, partSlug, lessonSlug, workspaceDir]);
 
   return (
     <div className="flex h-full">
