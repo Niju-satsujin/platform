@@ -17,6 +17,7 @@ export async function POST(request: Request) {
     const partSlug = String(formData.get("partSlug") || "").trim();
     const pastedText = String(formData.get("pastedText") || "");
     const manualPass = String(formData.get("manualPass") || "false") === "true";
+    const skipDefense = String(formData.get("skipDefense") || "false") === "true";
     const submissionId = String(formData.get("submissionId") || "").trim();
     const defenseResponse = String(formData.get("defenseResponse") || "").trim();
     const codeSnapshotRaw = String(formData.get("codeSnapshot") || "");
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
       pastedText,
       uploadPath,
       manualPass,
+      skipDefense,
       submissionId: submissionId || undefined,
       defenseResponse: defenseResponse || undefined,
       codeSnapshot,

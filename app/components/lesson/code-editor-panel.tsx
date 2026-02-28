@@ -853,7 +853,7 @@ export function CodeEditorPanel({
       return;
     }
 
-    // 3. Auto-submit proof to earn XP
+    // 3. Auto-submit proof to earn XP (skip defense challenge for automated tests)
     try {
       const formData = new FormData();
       if (mode === "quest") {
@@ -866,6 +866,7 @@ export function CodeEditorPanel({
       }
       formData.set("pastedText", collectedOutput.slice(-2000));
       formData.set("manualPass", "true");
+      formData.set("skipDefense", "true");
 
       const endpoint = mode === "quest"
         ? "/api/submissions/quest"
@@ -873,7 +874,7 @@ export function CodeEditorPanel({
       const subRes = await fetch(endpoint, { method: "POST", body: formData });
       const subData = await subRes.json();
 
-      if (subRes.ok && (subData.status === "passed" || subData.status === "pending")) {
+      if (subRes.ok && subData.status === "passed") {
         setLessonPassed(true);
         setTestResult({
           status: "passed",
@@ -883,16 +884,15 @@ export function CodeEditorPanel({
         });
       } else {
         setTestResult({
-          status: "passed",
-          message: `${validationMessage} (${subData.message || "proof submitted"})`,
+          status: "failed",
+          message: subData.error || subData.message || "Submission failed",
           output: collectedOutput.slice(-300),
-          xpAwarded: subData.xpAwarded || 0,
         });
       }
     } catch {
       setTestResult({
-        status: "passed",
-        message: `${validationMessage} (could not submit proof — are you logged in?)`,
+        status: "error",
+        message: "Could not submit proof — are you logged in?",
         output: collectedOutput.slice(-300),
       });
     }

@@ -22,6 +22,7 @@ interface SubmitProofInput {
   pastedText?: string;
   uploadPath?: string;
   manualPass?: boolean;
+  skipDefense?: boolean;
   submissionId?: string;
   defenseResponse?: string;
   codeSnapshot?: string;
@@ -624,6 +625,38 @@ export async function submitProof(input: SubmitProofInput): Promise<SubmitProofR
       };
     }
 
+    // Skip the defense challenge for automated test submissions
+    // (e.g. Testing button already validated output against regex patterns)
+    if (input.skipDefense) {
+      const submission = await prisma.submission.create({
+        data: {
+          userId: input.userId,
+          lessonId: input.lessonId,
+          status: "passed",
+          text: pastedText || null,
+          pastedText: pastedText || null,
+          filePath: input.uploadPath || null,
+          uploadPath: input.uploadPath || null,
+        },
+      });
+
+      const xpAwarded = await handleLessonPass(input.userId, input.lessonId!, submission.id);
+
+      await logProgressEvent(input.userId, "proof_submitted", {
+        lessonId: input.lessonId,
+        status: "passed",
+        reason: "automated_test_pass",
+      });
+
+      return {
+        status: "passed",
+        message: "All checks passed!",
+        submissionId: submission.id,
+        xpAwarded,
+        defenseVerdict: "pass",
+      };
+    }
+
     const challenge = await buildDefenseChallenge({
       proofText: pastedText,
       codeSnapshot: input.codeSnapshot,
@@ -703,6 +736,37 @@ export async function submitProof(input: SubmitProofInput): Promise<SubmitProofR
       submissionId: submission.id,
       xpAwarded: 0,
       defenseVerdict: "fail",
+    };
+  }
+
+  // Skip the defense challenge for automated test submissions
+  if (input.skipDefense) {
+    const submission = await prisma.submission.create({
+      data: {
+        userId: input.userId,
+        questId: input.questId,
+        status: "passed",
+        text: pastedText || null,
+        pastedText: pastedText || null,
+        filePath: input.uploadPath || null,
+        uploadPath: input.uploadPath || null,
+      },
+    });
+
+    const xpAwarded = await handleQuestPass(input.userId, input.questId!, submission.id);
+
+    await logProgressEvent(input.userId, "proof_submitted", {
+      questId: input.questId,
+      status: "passed",
+      reason: "automated_test_pass",
+    });
+
+    return {
+      status: "passed",
+      message: "All checks passed!",
+      submissionId: submission.id,
+      xpAwarded,
+      defenseVerdict: "pass",
     };
   }
 
