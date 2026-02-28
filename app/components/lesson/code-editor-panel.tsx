@@ -749,233 +749,154 @@ export function CodeEditorPanel({
     ? Boolean(localRootHandleRef.current)
     : Boolean(workspaceDir);
 
-  /* ── Run test via Judge0 cloud API, validate output, submit proof ── */
+  /* ── Run test: read output files from local folder, validate against proof rules ── */
   const runTest = useCallback(async () => {
-    // Collect ALL code files and inline them into a single source for Judge0.
-    const allFiles = new Map<string, string>();
-    const codeExts = [".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hxx"];
-    const isCode = (n: string) => codeExts.some((e) => n.toLowerCase().endsWith(e));
+    setTestResult({ status: "running", message: "Reading output files from local folder..." });
 
-    // 1. Read source files from the local folder handles (File System Access API)
+    // 1. Collect output from local folder files
+    const outputExts = [".txt", ".log", ".out", ".output", ".result"];
+    const outputNames = [
+      "output.txt", "output.log", "test_output.txt", "results.txt",
+      "stdout.txt", "log.txt", "result.txt", "test.log", "run.log",
+    ];
+    const isOutputFile = (n: string) => {
+      const lower = n.toLowerCase();
+      const base = lower.split("/").pop() || lower;
+      if (outputNames.includes(base)) return true;
+      return outputExts.some((e) => base.endsWith(e));
+    };
+
+    let collectedOutput = "";
+    const outputFiles: { name: string; content: string; modified: number }[] = [];
+
+    // Read output files from connected local folder
     const localMap = localFileMapRef.current;
     if (localMap.size > 0) {
       for (const [relPath, handle] of localMap.entries()) {
-        if (!isCode(relPath)) continue;
+        if (!isOutputFile(relPath)) continue;
         try {
           const file = await handle.getFile();
           const text = await file.text();
-          if (text.trim()) allFiles.set(relPath, text);
+          if (text.trim()) {
+            outputFiles.push({
+              name: relPath,
+              content: text.trim(),
+              modified: file.lastModified,
+            });
+          }
         } catch {
           // permission expired — skip
         }
       }
     }
 
-    // 2. Fallback: use starter template files if nothing from local
-    if (allFiles.size === 0) {
-      for (const [name, content] of Object.entries(starter.files)) {
-        if (isCode(name)) allFiles.set(name, content);
-      }
-    }
-
-    // 3. Override with open editor tabs (latest unsaved edits always win)
+    // Also check open editor tabs for output/log files
     for (const f of openFiles) {
-      if (isCode(f.name)) allFiles.set(f.name, f.content);
-    }
-
-    // 4. Find the main .cpp file
-    const mainFileName = starter.mainFile || "main.cpp";
-    let mainCode = allFiles.get(mainFileName);
-    let mainKey = mainFileName;
-    if (!mainCode) {
-      for (const [name, content] of allFiles.entries()) {
-        if (name.toLowerCase().endsWith(".cpp")) {
-          mainCode = content;
-          mainKey = name;
-          break;
+      if (isOutputFile(f.name) && f.content.trim()) {
+        // Don't duplicate if already read from local folder
+        if (!outputFiles.some((o) => o.name === f.name)) {
+          outputFiles.push({ name: f.name, content: f.content.trim(), modified: Date.now() });
         }
       }
     }
 
-    if (!mainCode?.trim()) {
+    if (outputFiles.length === 0) {
       setTestResult({
         status: "error",
-        message: "No C++ code found. Open a .cpp file or connect a local folder.",
+        message: "No output file found. Run your program locally and save output to output.txt, then try again.",
+        output: "How to test:\n1. Compile: g++ -o main main.cpp\n2. Run: ./main > output.txt 2>&1\n3. Click Testing again",
       });
       return;
     }
 
-    // 5. Inline #include "file" directives and extra .cpp files into one source.
-    //    Judge0 only compiles a single file — we must merge everything client-side.
-    const headerMap = new Map<string, string>();
-    for (const [name, content] of allFiles.entries()) {
-      if (name !== mainKey) headerMap.set(name, content);
-    }
-
-    let merged = mainCode;
-
-    // Replace #include "local_file" with actual content
-    merged = merged.replace(
-      /^(\s*)#include\s*"([^"]+)"/gm,
-      (_match: string, indent: string, incName: string) => {
-        // Try exact, case-insensitive, and basename match
-        let found: string | undefined;
-        let foundKey = "";
-        for (const [key, val] of headerMap.entries()) {
-          const keyBase = key.split("/").pop()?.toLowerCase() || key.toLowerCase();
-          if (key === incName || key.toLowerCase() === incName.toLowerCase() || keyBase === incName.toLowerCase()) {
-            found = val;
-            foundKey = key;
-            break;
-          }
-        }
-        if (found !== undefined) {
-          headerMap.delete(foundKey);
-          // Strip include guards and #pragma once from inlined headers
-          const cleaned = found
-            .replace(/^\s*#pragma\s+once\s*/m, "")
-            .replace(/^\s*#ifndef\s+\w+\s*\n\s*#define\s+\w+\s*/m, "")
-            .replace(/\n\s*#endif\s*\/?\/?[^\n]*\s*$/, "");
-          return `${indent}// --- inlined: ${foundKey} ---\n${cleaned}\n// --- end: ${foundKey} ---`;
-        }
-        return _match;
-      }
-    );
-
-    // Insert remaining .cpp files before int main()
-    const extraCpps = Array.from(headerMap.entries())
-      .filter(([n]) => n.endsWith(".cpp") || n.endsWith(".cc") || n.endsWith(".cxx"));
-    if (extraCpps.length > 0) {
-      const extras = extraCpps
-        .map(([n, c]) => `// --- inlined: ${n} ---\n${c}\n// --- end: ${n} ---`)
-        .join("\n\n");
-      const mainIdx = merged.indexOf("int main");
-      if (mainIdx > 0) {
-        merged = merged.slice(0, mainIdx) + "\n" + extras + "\n\n" + merged.slice(mainIdx);
-      } else {
-        merged = extras + "\n\n" + merged;
-      }
-    }
+    // Sort by most recently modified and concatenate all output
+    outputFiles.sort((a, b) => b.modified - a.modified);
+    collectedOutput = outputFiles.map((f) => f.content).join("\n");
 
     setTestResult({
       status: "running",
-      message: `Compiling ${allFiles.size} file(s)...`,
+      message: `Validating ${outputFiles.length} output file(s)...`,
     });
 
-    try {
-      // 6. Send the single merged source to Judge0 via /api/execute
-      const execRes = await fetch("/api/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: merged,
-          language: "cpp",
-          files: [], // already inlined
-          stdin: "",
-        }),
+    // 2. Validate output against proof regex patterns
+    const patterns = proofRules?.regexPatterns || [];
+    let proofPassed = true;
+    let validationMessage = `Output read from: ${outputFiles.map((f) => f.name).join(", ")}`;
+
+    if (patterns.length > 0) {
+      const checks = patterns.map((p: string) => {
+        try {
+          return { pattern: p, matched: new RegExp(p, "im").test(collectedOutput) };
+        } catch {
+          return { pattern: p, matched: false };
+        }
       });
+      const matchedCount = checks.filter((c: { matched: boolean }) => c.matched).length;
+      proofPassed = matchedCount === checks.length;
 
-      const result = await execRes.json();
-
-      if (!execRes.ok || !result.success) {
-        const phase = result.phase === "compile" ? "Compilation" : "Runtime";
-        setTestResult({
-          status: "failed",
-          message: `${phase} error`,
-          output: result.error || result.stderr || "Unknown error",
-        });
-        return;
+      if (proofPassed) {
+        validationMessage = `All ${checks.length} check(s) passed!`;
+      } else {
+        const missing = checks
+          .filter((c: { matched: boolean }) => !c.matched)
+          .map((c: { pattern: string }) => c.pattern);
+        validationMessage = `${matchedCount}/${checks.length} checks passed. Missing patterns: ${missing.join(", ")}`;
       }
+    }
 
-      const fullOutput = (result.stdout || "") + "\n" + (result.stderr || "");
+    if (!proofPassed) {
+      setTestResult({
+        status: "failed",
+        message: validationMessage,
+        output: collectedOutput.slice(-500),
+      });
+      return;
+    }
 
-      // 2. Validate output against proof regex patterns
-      const patterns = proofRules?.regexPatterns || [];
-      let proofPassed = true;
-      let validationMessage = "Code compiled and ran successfully!";
-
-      if (patterns.length > 0) {
-        const checks = patterns.map((p: string) => {
-          try {
-            return { pattern: p, matched: new RegExp(p, "im").test(fullOutput) };
-          } catch {
-            return { pattern: p, matched: false };
-          }
-        });
-        const matchedCount = checks.filter((c: { matched: boolean }) => c.matched).length;
-        proofPassed = matchedCount === checks.length;
-
-        if (proofPassed) {
-          validationMessage = `All ${checks.length} check(s) passed!`;
-        } else {
-          const missing = checks
-            .filter((c: { matched: boolean }) => !c.matched)
-            .map((c: { pattern: string }) => c.pattern);
-          validationMessage = `${matchedCount}/${checks.length} checks passed. Missing: ${missing.join(", ")}`;
-        }
+    // 3. Auto-submit proof to earn XP
+    try {
+      const formData = new FormData();
+      if (mode === "quest") {
+        formData.set("questId", lessonId);
+        formData.set("partSlug", partSlug);
+      } else {
+        formData.set("lessonId", lessonId);
+        formData.set("partSlug", partSlug);
+        formData.set("lessonSlug", lessonSlug);
       }
+      formData.set("pastedText", collectedOutput.slice(-2000));
+      formData.set("manualPass", "true");
 
-      if (!proofPassed) {
-        setTestResult({
-          status: "failed",
-          message: validationMessage,
-          output: fullOutput.slice(-500),
-        });
-        return;
-      }
+      const endpoint = mode === "quest"
+        ? "/api/submissions/quest"
+        : "/api/submissions/lesson";
+      const subRes = await fetch(endpoint, { method: "POST", body: formData });
+      const subData = await subRes.json();
 
-      // 3. Auto-submit proof to earn XP
-      try {
-        const formData = new FormData();
-        if (mode === "quest") {
-          formData.set("questId", lessonId);
-          formData.set("partSlug", partSlug);
-        } else {
-          formData.set("lessonId", lessonId);
-          formData.set("partSlug", partSlug);
-          formData.set("lessonSlug", lessonSlug);
-        }
-        formData.set("pastedText", fullOutput.slice(-2000));
-        formData.set("manualPass", "true");
-
-        const endpoint = mode === "quest"
-          ? "/api/submissions/quest"
-          : "/api/submissions/lesson";
-        const subRes = await fetch(endpoint, { method: "POST", body: formData });
-        const subData = await subRes.json();
-
-        if (subRes.ok && (subData.status === "passed" || subData.status === "pending")) {
-          setLessonPassed(true);
-          setTestResult({
-            status: "passed",
-            message: validationMessage,
-            output: fullOutput.slice(-300),
-            xpAwarded: subData.xpAwarded || 0,
-          });
-        } else {
-          // Tests passed but submission had an issue
-          setTestResult({
-            status: "passed",
-            message: `${validationMessage} (${subData.message || "proof submitted"})`,
-            output: fullOutput.slice(-300),
-            xpAwarded: subData.xpAwarded || 0,
-          });
-        }
-      } catch {
-        // Tests passed even if submission fails
+      if (subRes.ok && (subData.status === "passed" || subData.status === "pending")) {
+        setLessonPassed(true);
         setTestResult({
           status: "passed",
-          message: `${validationMessage} (could not submit proof — are you logged in?)`,
-          output: fullOutput.slice(-300),
+          message: validationMessage,
+          output: collectedOutput.slice(-300),
+          xpAwarded: subData.xpAwarded || 0,
+        });
+      } else {
+        setTestResult({
+          status: "passed",
+          message: `${validationMessage} (${subData.message || "proof submitted"})`,
+          output: collectedOutput.slice(-300),
+          xpAwarded: subData.xpAwarded || 0,
         });
       }
-    } catch (err) {
+    } catch {
       setTestResult({
-        status: "error",
-        message: err instanceof Error ? err.message : "Unexpected error",
+        status: "passed",
+        message: `${validationMessage} (could not submit proof — are you logged in?)`,
+        output: collectedOutput.slice(-300),
       });
     }
-  }, [openFiles, starter.mainFile, starter.files, proofRules, mode, lessonId, partSlug, lessonSlug, workspaceDir]);
+  }, [openFiles, proofRules, mode, lessonId, partSlug, lessonSlug]);
 
   return (
     <div className="flex h-full">
@@ -1130,10 +1051,10 @@ export function CodeEditorPanel({
               type="button"
               onClick={runTest}
               className="editor-btn text-[11px]"
-              title="Build, test, and validate — awards XP on pass"
-              disabled={openFiles.length === 0 || testResult?.status === "running"}
+              title="Check output.txt from your local folder — compile & run locally first, then click to validate"
+              disabled={testResult?.status === "running"}
             >
-              {testResult?.status === "running" ? "⏳ Running..." : "🧪 Testing"}
+              {testResult?.status === "running" ? "⏳ Checking..." : "🧪 Testing"}
             </button>
             {lessonPassed && (
               <span className="text-[10px] text-green-400 font-semibold">Passed</span>
