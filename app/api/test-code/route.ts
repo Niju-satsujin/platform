@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PISTON_URL = "https://emkc.org/api/v2/piston/execute";
+const JUDGE0_URL = process.env.JUDGE0_URL || "https://ce.judge0.com";
+const CPP_LANG_ID = 105; // C++ (GCC 14.1.0)
 
 const MAX_CODE_LENGTH = 50_000;
 const MAX_OUTPUT = 10_000;
@@ -52,8 +53,31 @@ function checkOutput(
   }
 }
 
-/* ── Piston execution helper ── */
-async function pistonRun(
+function b64e(s: string) { return Buffer.from(s, "utf-8").toString("base64"); }
+function b64d(s: string | null | undefined) {
+  if (!s) return "";
+  try { return Buffer.from(s, "base64").toString("utf-8"); } catch { return s; }
+}
+
+async function pollResult(token: string) {
+  for (let i = 0; i < 20; i++) {
+    const r = await fetch(
+      `${JUDGE0_URL}/submissions/${token}?base64_encoded=true&fields=status,stdout,stderr,compile_output,exit_code`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (!r.ok) throw new Error(`Judge0 poll: ${r.status}`);
+    const d = await r.json();
+    if (d.status?.id === 1 || d.status?.id === 2) {
+      await new Promise((r) => setTimeout(r, 1500));
+      continue;
+    }
+    return d;
+  }
+  throw new Error("Execution timed out");
+}
+
+/* ── Judge0 execution helper ── */
+async function judge0Run(
   code: string,
   stdin: string = ""
 ): Promise<{
@@ -65,18 +89,16 @@ async function pistonRun(
   exitCode: number;
   signal?: string;
 }> {
-  const res = await fetch(PISTON_URL, {
+  const res = await fetch(`${JUDGE0_URL}/submissions?base64_encoded=true&wait=false`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
-      language: "c++",
-      version: "10.2.0",
-      files: [{ name: "main.cpp", content: code }],
-      stdin,
-      compile_timeout: 10000,
-      run_timeout: 5000,
-      compile_memory_limit: -1,
-      run_memory_limit: -1,
+      language_id: CPP_LANG_ID,
+      source_code: b64e(code),
+      stdin: b64e(stdin),
+      cpu_time_limit: 10,
+      wall_time_limit: 15,
+      memory_limit: 256000,
     }),
   });
 
@@ -84,35 +106,52 @@ async function pistonRun(
     const text = await res.text();
     return {
       compileOk: false,
-      compileError: `Execution service error: ${text}`,
+      compileError: `Execution service error (${res.status}): ${text}`,
       stdout: "",
       stderr: "",
       exitCode: 1,
     };
   }
 
-  const data = await res.json();
-  const compile = data.compile || {};
-  const run = data.run || {};
+  const { token } = await res.json();
+  if (!token) {
+    return { compileOk: false, compileError: "No execution token", stdout: "", stderr: "", exitCode: 1 };
+  }
 
-  // Piston returns compile.code !== 0 if compilation fails
-  if (compile.code !== undefined && compile.code !== 0) {
+  const data = await pollResult(token);
+  const statusId = data.status?.id;
+  const stdout = b64d(data.stdout);
+  const stderr = b64d(data.stderr);
+  const compileOutput = b64d(data.compile_output);
+
+  // 6 = Compilation Error
+  if (statusId === 6) {
     return {
       compileOk: false,
-      compileError: compile.stderr || compile.output || "Compilation failed",
+      compileError: compileOutput || "Compilation failed",
       stdout: "",
-      stderr: compile.stderr || "",
-      exitCode: compile.code,
+      stderr: compileOutput || "",
+      exitCode: 1,
+    };
+  }
+
+  // 7-12 = Runtime errors
+  if (statusId && statusId >= 5 && statusId <= 12 && statusId !== 3 && statusId !== 4) {
+    return {
+      compileOk: true,
+      stdout,
+      stderr: stderr || compileOutput || `Runtime error (status ${statusId})`,
+      exitCode: data.exit_code ?? 1,
+      signal: statusId === 7 ? "SIGSEGV" : statusId === 5 ? "TLE" : undefined,
     };
   }
 
   return {
     compileOk: true,
-    warnings: compile.stderr || undefined,
-    stdout: run.stdout || "",
-    stderr: run.stderr || "",
-    exitCode: run.code ?? 0,
-    signal: run.signal || undefined,
+    warnings: compileOutput || undefined,
+    stdout,
+    stderr,
+    exitCode: data.exit_code ?? 0,
   };
 }
 
@@ -180,7 +219,7 @@ async function runTestHarness(code: string, testCode: string) {
     `// === USER SOLUTION ===\n${code}\n// === END USER SOLUTION ===`
   );
 
-  const result = await pistonRun(combined);
+  const result = await judge0Run(combined);
 
   if (!result.compileOk) {
     return NextResponse.json({
@@ -222,7 +261,7 @@ async function runTestCases(code: string, testCases: TestCase[]) {
   const results: TestResult[] = [];
 
   for (const tc of testCases) {
-    const result = await pistonRun(code, tc.input || "");
+    const result = await judge0Run(code, tc.input || "");
 
     if (!result.compileOk) {
       return NextResponse.json({
@@ -271,7 +310,7 @@ async function runTestCases(code: string, testCases: TestCase[]) {
 }
 
 async function runSelfTest(code: string) {
-  const result = await pistonRun(code);
+  const result = await judge0Run(code);
 
   if (!result.compileOk) {
     return NextResponse.json({

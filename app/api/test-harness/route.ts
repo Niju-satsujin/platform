@@ -12,8 +12,8 @@ import { NextRequest, NextResponse } from "next/server";
  * 3. Runs the 12-test harness inline
  */
 
-const PISTON_URL =
-  process.env.PISTON_URL || "https://emkc.org/api/v2/piston/execute";
+const JUDGE0_URL = process.env.JUDGE0_URL || "https://ce.judge0.com";
+const BASH_LANG_ID = 46; // Bash (5.0.0)
 const MAX_OUTPUT = 15_000;
 const MAX_CODE_LENGTH = 50_000;
 
@@ -226,33 +226,64 @@ export async function POST(req: NextRequest) {
 
     const harnessScript = buildHarnessScript(code);
 
-    const pistonRes = await fetch(PISTON_URL, {
+    const b64e = (s: string) => Buffer.from(s, "utf-8").toString("base64");
+    const b64d = (s: string | null | undefined) => {
+      if (!s) return "";
+      try { return Buffer.from(s, "base64").toString("utf-8"); } catch { return s; }
+    };
+
+    // Submit bash script to Judge0
+    const submitRes = await fetch(`${JUDGE0_URL}/submissions?base64_encoded=true&wait=false`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
-        language: "bash",
-        version: "5.2.0",
-        files: [{ name: "harness.sh", content: harnessScript }],
-        stdin: "",
-        compile_timeout: 15000,
-        run_timeout: 30000,
-        compile_memory_limit: -1,
-        run_memory_limit: -1,
+        language_id: BASH_LANG_ID,
+        source_code: b64e(harnessScript),
+        stdin: b64e(""),
+        cpu_time_limit: 30,
+        wall_time_limit: 45,
+        memory_limit: 256000,
       }),
     });
 
-    if (!pistonRes.ok) {
-      const errText = await pistonRes.text().catch(() => "Unknown error");
+    if (!submitRes.ok) {
+      const errText = await submitRes.text().catch(() => "Unknown error");
       return NextResponse.json({
         success: false,
-        error: `Test service error (${pistonRes.status}): ${errText}`,
+        error: `Test service error (${submitRes.status}): ${errText}`,
       });
     }
 
-    const result = await pistonRes.json();
-    const run = result.run || {};
-    const stdout = run.stdout || run.output || "";
-    const stderr = run.stderr || "";
+    const { token } = await submitRes.json();
+    if (!token) {
+      return NextResponse.json({
+        success: false,
+        error: "Failed to get execution token",
+      });
+    }
+
+    // Poll for result
+    let data;
+    for (let i = 0; i < 25; i++) {
+      const r = await fetch(
+        `${JUDGE0_URL}/submissions/${token}?base64_encoded=true&fields=status,stdout,stderr,compile_output,exit_code`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (!r.ok) throw new Error(`Judge0 poll: ${r.status}`);
+      data = await r.json();
+      if (data.status?.id === 1 || data.status?.id === 2) {
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      break;
+    }
+
+    if (!data) {
+      return NextResponse.json({ success: false, error: "Execution timed out" });
+    }
+
+    const stdout = b64d(data.stdout);
+    const stderr = b64d(data.stderr);
 
     // Parse pass/fail counts from output
     const summaryMatch = stdout.match(/PASS=(\d+)\s+FAIL=(\d+)\s+TOTAL=(\d+)/);
