@@ -8,7 +8,7 @@ kind: lesson
 part: w01
 proof:
   type: paste
-  instructions: "Paste: (1) your FsyncPolicy enum class definition, (2) output showing logger works with both NONE and EVERY_WRITE policies."
+  instructions: "Paste: (1) your FsyncPolicy enum class definition, (2) output showing trustlog works with both NONE and EVERY_WRITE policies."
   regex_patterns:
     - "FsyncPolicy"
     - "NONE|EVERY_WRITE"
@@ -24,6 +24,7 @@ When you write data to a file, it does not go directly to disk. It goes to a buf
 `fsync()` pushes data from the OS page cache to the physical disk. After `fsync()` returns, the data survives a power outage.
 
 In C:
+
 ```c
 fflush(f);                    // C++ stream → OS cache
 fsync(fileno(f));             // OS cache → disk
@@ -32,18 +33,19 @@ fsync(fileno(f));             // OS cache → disk
 In C++, `std::ofstream` does not expose `fsync()`. You need the POSIX file descriptor. This is one of the few places where C++ makes you drop down to C-level APIs.
 
 The tradeoff: `fsync()` is slow (can take milliseconds). For a logger, you usually want two modes:
+
 - **No fsync** — fast, good enough for debug logs
 - **fsync after every write** — slow but durable, for audit logs that must survive crashes
 
 ## Task
 
-1. Define `enum class FsyncPolicy { NONE, EVERY_WRITE }` in `logger.h`
-2. Add `FsyncPolicy` as a constructor parameter to Logger (default: `NONE`)
+1. Define `enum class FsyncPolicy { NONE, EVERY_WRITE }` in `trustlog.h`
+2. Add `FsyncPolicy` as a constructor parameter to TrustLog (default: `NONE`)
 3. After writing each log entry:
    - Always call `.flush()` on the ofstream
    - If policy is `EVERY_WRITE`, also call `fsync()` on the underlying file descriptor
 4. To get the file descriptor from an ofstream, you will need a POSIX-specific approach (see hints)
-5. Add a `--fsync` flag to the CLI: `logger --fsync write INFO main "important"` enables `EVERY_WRITE`
+5. Add a `--fsync` flag to the `append` command: `trustlog append --file log.txt --fsync --level INFO --component main --message "important"` enables `EVERY_WRITE`
 
 ## Hints
 
@@ -56,9 +58,9 @@ The tradeoff: `fsync()` is slow (can take milliseconds). For a logger, you usual
 ## Verify
 
 ```bash
-g++ -std=c++17 -o logger main.cpp
-./logger write INFO main "no fsync"
-./logger --fsync write INFO main "with fsync"
+cmake --build build
+./build/trustlog append --file log.txt --level INFO --component main --message "no fsync"
+./build/trustlog append --file log.txt --fsync --level INFO --component main --message "with fsync"
 cat log.txt
 ```
 

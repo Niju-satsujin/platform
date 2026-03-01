@@ -17,7 +17,7 @@ proof:
 
 ## Concept
 
-The logger's job is to write clean, parseable log entries. If you accept garbage input, you get garbage output — and then your read/filter code breaks trying to parse it later.
+The trustlog's job is to write clean, parseable log entries. If you accept garbage input, you get garbage output — and then your read/filter code breaks trying to parse it later.
 
 The rule is: **validate at the boundary, before anything gets written**. Three specific checks:
 
@@ -53,16 +53,17 @@ In C, you would return an error code from the function. In C++, you have the sam
 
 ```bash
 # Tab in message
-./logger write INFO main "hello	world"; echo "exit code: $?"
+./build/trustlog append --file log.txt --level INFO --component main --message "hello	world"; echo "exit code: $?"
 
 # Oversized message (create 2000-byte string)
-./logger write INFO main "$(python3 -c 'print("A"*2000)')"; echo "exit code: $?"
+./build/trustlog append --file log.txt --level INFO --component main --message "$(python3 -c 'print("A"*2000)')"; echo "exit code: $?"
 
 # Empty component
-./logger write INFO "" "test"; echo "exit code: $?"
+./build/trustlog append --file log.txt --level INFO --component "" --message "test"; echo "exit code: $?"
 ```
 
 Expected:
+
 - All three commands exit with code 1
 - Each prints a clear error message explaining why the input was rejected
 - Nothing is written to the log file

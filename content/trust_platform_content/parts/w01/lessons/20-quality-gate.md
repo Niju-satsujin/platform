@@ -28,13 +28,14 @@ The 8-point checklist:
 3. **Deterministic** — 3 consecutive ctest runs produce identical output
 4. **Standalone** — `test_standalone` compiles and passes without CLI code
 5. **Benchmark recorded** — ops/sec numbers for no-fsync and fsync modes are written down
-6. **stderr/stdout correct** — `logger read 2>/dev/null | wc -l` returns the exact entry count
+6. **stderr/stdout correct** — `trustlog read --file log.txt 2>/dev/null | wc -l` returns the exact entry count
 7. **CI green** — GitHub Actions shows a green checkmark on the latest push
 8. **Project structure** — `include/`, `src/`, `tests/` layout is clean
 
 After passing all 8, tag your repo:
+
 ```bash
-git tag -a v0.1-logger -m "Week 1: Structured Logger complete"
+git tag -a v0.1-trustlog -m "Week 1: Structured Logger complete"
 ```
 
 This tag is your checkpoint. You can always come back to this exact state.
@@ -45,7 +46,7 @@ This tag is your checkpoint. You can always come back to this exact state.
 2. For each item, write PASS or FAIL
 3. Fix any FAIL items
 4. When all 8 are PASS, create the git tag
-5. Write a short `README.md` for the logger project (3-5 sentences: what it does, how to build, how to test)
+5. Write a short `README.md` for the trustlog project (3-5 sentences: what it does, how to build, how to test)
 
 ## Hints
 
@@ -53,8 +54,8 @@ This tag is your checkpoint. You can always come back to this exact state.
 - For check 2: `cd build && ctest --output-on-failure`
 - For check 3: run ctest 3 times, diff the outputs
 - For check 7: go to your GitHub repo's Actions tab
-- `git tag -a v0.1-logger -m "Week 1 complete"` creates an annotated tag
-- `git push origin v0.1-logger` pushes the tag to GitHub
+- `git tag -a v0.1-trustlog -m "Week 1 complete"` creates an annotated tag
+- `git push origin v0.1-trustlog` pushes the tag to GitHub
 
 ## Verify
 
@@ -65,9 +66,10 @@ git tag -l "v0.1*"
 ```
 
 Expected:
+
 - Warning count is 0
 - All tests pass
-- Tag `v0.1-logger` exists
+- Tag `v0.1-trustlog` exists
 
 ## Done When
 

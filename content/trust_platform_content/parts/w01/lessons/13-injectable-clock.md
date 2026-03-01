@@ -8,7 +8,7 @@ kind: lesson
 part: w01
 proof:
   type: paste
-  instructions: "Paste: (1) your Logger constructor showing it accepts a clock function, (2) a test that uses a fake clock and asserts the exact timestamp in the output."
+  instructions: "Paste: (1) your TrustLog constructor showing it accepts a clock function, (2) a test that uses a fake clock and asserts the exact timestamp in the output."
   regex_patterns:
     - "std::function"
     - "fake|mock|test"
@@ -18,14 +18,15 @@ proof:
 
 ## Concept
 
-Your logger calls `now_ms()` to get the current time. That means every time you run a test, the timestamps are different. You cannot write a test that says "the output should be exactly this" because the timestamp changes every run.
+Your trustlog calls `now_ms()` to get the current time. That means every time you run a test, the timestamps are different. You cannot write a test that says "the output should be exactly this" because the timestamp changes every run.
 
-The fix is called **dependency injection**. Instead of hardcoding the clock call inside the logger, you pass the clock function in from the outside. In production, you pass the real clock. In tests, you pass a fake clock that always returns the same value.
+The fix is called **dependency injection**. Instead of hardcoding the clock call inside the trustlog, you pass the clock function in from the outside. In production, you pass the real clock. In tests, you pass a fake clock that always returns the same value.
 
 In C, you might use a function pointer:
+
 ```c
 typedef uint64_t (*clock_fn)(void);
-void logger_init(clock_fn get_time);
+void trustlog_init(clock_fn get_time);
 ```
 
 In C++, you use `std::function`, which is like a function pointer but can also hold a **lambda** (an anonymous function defined inline):
@@ -35,6 +36,7 @@ std::function<uint64_t()> clock_fn;
 ```
 
 A lambda looks like this:
+
 ```cpp
 auto fake_clock = []() -> uint64_t { return 1000000000000; };
 ```
@@ -43,11 +45,11 @@ The `[]` captures nothing from the outside. The `()` takes no arguments. The `->
 
 ## Task
 
-1. Change the Logger constructor to accept an optional clock function: `std::function<uint64_t()> clock = nullptr`
+1. Change the TrustLog constructor to accept an optional clock function: `std::function<uint64_t()> clock = nullptr`
 2. If no clock is provided, default to `now_ms()` (the real clock)
 3. If a clock is provided, call it instead of `now_ms()` when writing entries
 4. Write a test that:
-   - Creates a Logger with a fake clock that returns a sequence: 1000, 2000, 3000, ...
+   - Creates a TrustLog with a fake clock that returns a sequence: 1000, 2000, 3000, ...
    - Writes 3 entries
    - Reads them back
    - Asserts the timestamps are exactly 1000, 2000, 3000
@@ -63,8 +65,8 @@ The `[]` captures nothing from the outside. The `()` takes no arguments. The `->
 ## Verify
 
 ```bash
-g++ -std=c++17 -o test_clock test_clock.cpp
-./test_clock
+cmake --build build
+./build/test_clock
 echo "exit code: $?"
 ```
 

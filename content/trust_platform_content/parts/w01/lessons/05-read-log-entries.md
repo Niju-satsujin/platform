@@ -8,7 +8,7 @@ kind: lesson
 part: w01
 proof:
   type: paste
-  instructions: "Paste the output of 'logger read' showing at least 3 parsed entries printed to stdout."
+  instructions: "Paste the output of 'trustlog read --file log.txt' showing at least 3 parsed entries printed to stdout."
   regex_patterns:
     - "INFO|WARN|ERROR"
     - "\\d{13}"
@@ -31,6 +31,7 @@ struct LogEntry {
     Level level;
     std::string component;
     std::string message;
+    std::string request_id;
 };
 ```
 
@@ -38,15 +39,15 @@ A `std::vector<LogEntry>` holds all the entries. In C you would use `malloc()` a
 
 ## Task
 
-1. Define a `LogEntry` struct in `logger.h`
+1. Define a `LogEntry` struct in `trustlog.h`
 2. Write a function `std::vector<LogEntry> read_log(const std::string& path)` that:
    - Opens the file with `std::ifstream`
    - Reads each line with `std::getline`
-   - Splits each line by `\t` into 4 fields
+   - Splits each line by `\t` into 5 fields (timestamp, level, component, message, request_id)
    - Parses the timestamp string to `uint64_t` with `std::stoull()`
    - Parses the level string back to a `Level` enum value
    - Returns a vector of LogEntry
-3. Add a `read` command to your CLI: `logger read` — reads `log.txt` and prints all entries to stdout, one per line
+3. Add a `read` command to your CLI: `trustlog read --file log.txt` — reads the file and prints all entries to stdout, one per line
 
 ## Hints
 
@@ -54,22 +55,23 @@ A `std::vector<LogEntry>` holds all the entries. In C you would use `malloc()` a
 - `#include <fstream>` for std::ifstream
 - `#include <sstream>` for std::istringstream
 - `std::stoull("1234")` converts a string to `uint64_t`
-- If a line has fewer than 4 fields, skip it (do not crash)
+- If a line has fewer than 4 fields, skip it (do not crash). Lines with 4 fields (old format without request_id) are valid — treat request_id as empty.
 - Print each entry as: `[<timestamp>] <LEVEL> [<component>] <message>`
 
 ## Verify
 
 ```bash
 # First write a few entries
-./logger write INFO main "started"
-./logger write WARN config "missing key"
-./logger write ERROR db "connection lost"
+./build/trustlog append --file log.txt --level INFO --component main --message "started"
+./build/trustlog append --file log.txt --level WARN --component config --message "missing key"
+./build/trustlog append --file log.txt --level ERROR --component db --message "connection lost"
 # Now read them back
-./logger read
+./build/trustlog read --file log.txt
 ```
 
 Expected stdout:
-```
+
+```text
 [1708800012345] INFO [main] started
 [1708800012346] WARN [config] missing key
 [1708800012347] ERROR [db] connection lost
@@ -77,4 +79,4 @@ Expected stdout:
 
 ## Done When
 
-`logger read` prints every entry from the log file with all 4 fields correctly parsed.
+`trustlog read --file log.txt` prints every entry from the log file with all fields correctly parsed.

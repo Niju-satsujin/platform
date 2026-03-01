@@ -19,14 +19,15 @@ proof:
 Before shipping, organize your files into a standard C++ project layout. This is not about aesthetics — it is about making it obvious where things are when you come back in 3 months (or when a coworker looks at your repo).
 
 The standard layout:
-```
-project/
+
+```text
+trustlog/
 ├── CMakeLists.txt
 ├── include/
-│   └── logger.h          # public header (what other projects include)
+│   └── trustlog.h         # public header (what other projects include)
 ├── src/
-│   ├── logger.cpp         # library implementation
-│   └── main.cpp           # CLI entry point
+│   ├── trustlog.cpp        # library implementation
+│   └── main.cpp            # CLI entry point
 ├── tests/
 │   ├── test_write.cpp
 │   ├── test_read.cpp
@@ -43,6 +44,7 @@ project/
 ```
 
 The key rules:
+
 - `include/` has headers that other projects will `#include`
 - `src/` has implementation files
 - `tests/` has all test code
@@ -58,8 +60,8 @@ The key rules:
 
 ## Hints
 
-- In CMakeLists.txt: `target_include_directories(logger PUBLIC include/)`
-- Then in source files: `#include "logger.h"` will find the header in `include/`
+- In CMakeLists.txt: `target_include_directories(trustlog_lib PUBLIC include/)`
+- Then in source files: `#include "trustlog.h"` will find the header in `include/`
 - Move files with `mv`, not copy — avoid duplicates
 - After reorganizing, do a clean build: `rm -rf build && cmake -B build && cmake --build build`
 

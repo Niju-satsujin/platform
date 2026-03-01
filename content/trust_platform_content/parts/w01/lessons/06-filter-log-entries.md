@@ -8,7 +8,7 @@ kind: lesson
 part: w01
 proof:
   type: paste
-  instructions: "Paste output of 'logger read --level ERROR' showing only ERROR entries, and 'logger read --component main' showing only main entries."
+  instructions: "Paste output of 'trustlog read --file log.txt --level ERROR' showing only ERROR entries, and 'trustlog read --file log.txt --component main' showing only main entries."
   regex_patterns:
     - "ERROR"
     - "\\[main\\]"
@@ -29,10 +29,10 @@ The filtering itself is simple: loop through entries, check if each one matches,
 ## Task
 
 1. Add CLI flags to the `read` command:
-   - `logger read --level ERROR` — only show entries with level ERROR
-   - `logger read --component main` — only show entries with component "main"
-   - Both flags can be combined: `logger read --level WARN --component config`
-   - No flags means show everything (existing behavior)
+   - `trustlog read --file log.txt --level ERROR` — only show entries with level ERROR
+   - `trustlog read --file log.txt --component main` — only show entries with component "main"
+   - Both flags can be combined: `trustlog read --file log.txt --level WARN --component config`
+   - No filter flags means show everything (existing behavior)
 2. Parse these flags from argv before calling the filter
 3. Filter entries after reading them: loop through the vector and skip entries that do not match
 
@@ -48,19 +48,20 @@ The filtering itself is simple: loop through entries, check if each one matches,
 
 ```bash
 # Write some diverse entries first
-./logger write INFO main "starting up"
-./logger write ERROR db "connection failed"
-./logger write WARN main "slow query"
-./logger write ERROR main "crash"
+./build/trustlog append --file log.txt --level INFO --component main --message "starting up"
+./build/trustlog append --file log.txt --level ERROR --component db --message "connection failed"
+./build/trustlog append --file log.txt --level WARN --component main --message "slow query"
+./build/trustlog append --file log.txt --level ERROR --component main --message "crash"
 # Filter by level
-./logger read --level ERROR
+./build/trustlog read --file log.txt --level ERROR
 # Filter by component
-./logger read --component main
+./build/trustlog read --file log.txt --component main
 # Combine
-./logger read --level ERROR --component main
+./build/trustlog read --file log.txt --level ERROR --component main
 ```
 
 Expected:
+
 - `--level ERROR` shows 2 entries (db error + main crash)
 - `--component main` shows 3 entries (all "main" entries)
 - Combined shows 1 entry (main crash only)

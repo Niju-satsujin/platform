@@ -15,7 +15,7 @@ proof:
 
 ## Goal
 
-Prove your logger is complete, tested, and production-quality. This is not a toy — it becomes the logging backbone for every system you build in the next 5 months.
+Prove your trustlog is complete, tested, and production-quality. This is not a toy — it becomes the logging backbone for every system you build in the next 5 months.
 
 ## Requirements
 
@@ -24,7 +24,7 @@ You must demonstrate all of these:
 1. **Clean build** — `cmake --build build` completes with zero warnings
 2. **All tests pass** — `cd build && ctest` shows every test green, run it 3 times to prove determinism
 3. **Benchmark recorded** — append ops/sec measured with fsync off and fsync on
-4. **Standalone proof** — a test that includes only `logger.h` and compiles without CLI code
+4. **Standalone proof** — a test that includes only `trustlog.h` and compiles without CLI code
 5. **Quality gate** — all 8 checkpoints from lesson 20 are PASS
 
 ## Verify
@@ -34,7 +34,7 @@ cmake --build build 2>&1 | tail -5
 cd build && ctest --output-on-failure
 cd build && ctest --output-on-failure
 cd build && ctest --output-on-failure
-./build/logger_benchmark
+./build/trustlog_benchmark
 ```
 
 All three ctest runs must produce identical output.

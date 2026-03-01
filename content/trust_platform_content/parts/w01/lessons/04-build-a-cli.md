@@ -8,7 +8,7 @@ kind: lesson
 part: w01
 proof:
   type: paste
-  instructions: "Paste: (1) output of your program with --help, (2) output with 'write INFO main hello', (3) output with a bad command showing exit code."
+  instructions: "Paste: (1) output of your program with --help, (2) output with 'trustlog append --file log.txt --level INFO --component main --message hello', (3) output with a bad command showing exit code."
   regex_patterns:
     - "Usage:"
     - "exit code"
@@ -22,59 +22,54 @@ In C, you already know `int main(int argc, char* argv[])`. C++ uses the exact sa
 
 In C, you might loop through argv comparing with `strcmp()`. In C++, you convert each `argv[i]` to a `std::string` and use `==` for comparison — no more `strcmp()`.
 
-A proper CLI has:
+A proper CLI uses **named flags** instead of positional arguments. Positional arguments are fragile — if you forget one, all the others shift and break silently. Named flags are self-documenting and order-independent.
+
+Bad (positional): `trustlog write INFO main "hello"`
+Good (flags): `trustlog append --file log.txt --level INFO --component main --message "hello"`
+
+A proper CLI also has:
+
 - **Exit code 0** for success — scripts that call your tool check this
 - **Exit code 1** for bad arguments — the user typed something wrong
 - **Exit code 2** for file errors — the file cannot be opened or written
 - **`--help`** prints usage to stdout and exits 0
 - **Error messages** go to stderr, never stdout
 
-In C:
-```c
-if (strcmp(argv[1], "--help") == 0) { printf("Usage: ...\n"); return 0; }
-```
-
-In C++:
-```cpp
-std::string cmd(argv[1]);
-if (cmd == "--help") { std::cout << "Usage: ...\n"; return 0; }
-```
-
-Same logic, less boilerplate.
-
 ## Task
 
 1. Rewrite `main.cpp` as a CLI with these commands:
-   - `logger --help` → prints usage to stdout, exits 0
-   - `logger write <LEVEL> <COMPONENT> <MESSAGE>` → writes one log entry to `log.txt`, exits 0
+   - `trustlog --help` → prints usage to stdout, exits 0
+   - `trustlog append --file PATH --level LEVEL --component NAME --message TEXT` → writes one log entry to PATH, exits 0
    - Any unknown command → prints error to stderr, exits 1
    - If the log file cannot be opened → prints error to stderr, exits 2
-2. Parse `argv` into std::string values at the top of main
-3. The help text should list all commands and exit codes
+2. All flags are required for `append`. If any flag is missing, print an error and exit 1.
+3. Parse flags by walking through argv looking for `--file`, `--level`, `--component`, `--message` and grabbing the next element as the value.
+4. The help text should list all commands, flags, and exit codes.
 
 ## Hints
 
 - `std::cerr << "Error: ..." << std::endl;` for error output
 - `std::cout << "Usage: ..." << std::endl;` for help output
-- Check `argc` before accessing `argv[n]` to avoid out-of-bounds
+- Check `i + 1 < argc` before reading `argv[i + 1]` — missing flag values should be an error (exit 1)
 - You can convert a string to a Level with a simple `if/else if` chain: `if (level_str == "INFO") return Level::INFO;`
 - Return the exit code from `main()` — do not call `exit()`
 
 ## Verify
 
 ```bash
-g++ -std=c++17 -o logger main.cpp
-./logger --help; echo "exit code: $?"
-./logger write INFO main "hello world"; echo "exit code: $?"
+cmake --build build
+./build/trustlog --help; echo "exit code: $?"
+./build/trustlog append --file log.txt --level INFO --component main --message "hello world"; echo "exit code: $?"
 cat log.txt
-./logger nope; echo "exit code: $?"
+./build/trustlog nope; echo "exit code: $?"
 ```
 
 Expected:
+
 - `--help` prints usage, exit code 0
-- `write` appends to log.txt, exit code 0
+- `append` writes to log.txt, exit code 0
 - `nope` prints error to stderr, exit code 1
 
 ## Done When
 
-Three different exit codes work correctly: 0 for success, 1 for bad args, 2 for file errors.
+Three different exit codes work correctly: 0 for success, 1 for bad args, 2 for file errors. All flags are parsed by name, not position.

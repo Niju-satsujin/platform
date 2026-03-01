@@ -18,6 +18,7 @@ proof:
 ## Concept
 
 So far you have been writing tests inside `main.cpp` or in a bash script. This works for a few tests, but it does not scale. You need a test runner that:
+
 - Discovers all tests automatically
 - Runs them independently (one failing test does not block others)
 - Reports which passed and which failed
@@ -26,6 +27,7 @@ So far you have been writing tests inside `main.cpp` or in a bash script. This w
 CMake includes a test runner called **ctest**. You add tests in your `CMakeLists.txt`, and ctest finds and runs them.
 
 The pattern:
+
 1. Each test is a small executable (or a script)
 2. It returns exit code 0 if it passes, non-zero if it fails
 3. CMake registers it with `add_test(NAME test_name COMMAND ./test_executable)`
@@ -35,8 +37,8 @@ You already have the building blocks: the golden file tests from lesson 14, the 
 
 ## Task
 
-1. Create a `CMakeLists.txt` for your project (if you do not have one already)
-2. Add your logger as a library target: `add_library(logger logger.h logger.cpp)`
+1. Update your `CMakeLists.txt` to include test targets
+2. Add your trustlog as a library target: `add_library(trustlog_lib trustlog.h trustlog.cpp)`
 3. Create separate test executables for each test category:
    - `test_write` — tests the write path (validation, error codes)
    - `test_read` — tests the read/filter path
@@ -47,9 +49,8 @@ You already have the building blocks: the golden file tests from lesson 14, the 
 
 ## Hints
 
-- Minimum CMakeLists.txt: `cmake_minimum_required(VERSION 3.16)` then `project(logger)` then `set(CMAKE_CXX_STANDARD 17)`
 - `add_executable(test_write tests/test_write.cpp)`
-- `target_link_libraries(test_write logger)`
+- `target_link_libraries(test_write trustlog_lib)`
 - `add_test(NAME test_write COMMAND test_write)`
 - `enable_testing()` must be called before `add_test()`
 - Build: `cmake -B build && cmake --build build`

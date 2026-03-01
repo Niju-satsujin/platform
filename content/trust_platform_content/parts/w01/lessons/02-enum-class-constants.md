@@ -8,7 +8,7 @@ kind: lesson
 part: w01
 proof:
   type: paste
-  instructions: "Paste your code showing the enum class definition and one usage of it in your Logger write method."
+  instructions: "Paste your code showing the enum class definition and one usage of it in your TrustLog write method."
   regex_patterns:
     - "enum class"
     - "Level"
@@ -18,6 +18,7 @@ proof:
 ## Concept
 
 In C, you define log levels like this:
+
 ```c
 #define LOG_INFO  0
 #define LOG_WARN  1
@@ -38,7 +39,7 @@ To convert a Level to a string for display, you write a small function (there is
 
 ## Task
 
-1. Define `enum class Level { INFO, WARN, ERROR }` in `logger.h`
+1. Define `enum class Level { INFO, WARN, ERROR }` in `trustlog.h`
 2. Write a helper function `std::string level_to_string(Level lvl)` that returns "INFO", "WARN", or "ERROR"
 3. Change your `write()` method signature to `write(Level lvl, const std::string& message)`
 4. The output line should now include the level: e.g. `INFO\tsome message`
@@ -53,12 +54,13 @@ To convert a Level to a string for display, you write a small function (there is
 ## Verify
 
 ```bash
-g++ -std=c++17 -o logger main.cpp
-./logger
+cmake --build build
+./build/trustlog
 cat log.txt
 ```
 
 Expected output in `log.txt`:
+
 ```
 INFO	some message
 WARN	a warning

@@ -190,7 +190,7 @@ async function updateStreak(userId: string) {
   });
 }
 
-async function handleLessonPass(userId: string, lessonId: string, submissionId: string): Promise<number> {
+export async function handleLessonPass(userId: string, lessonId: string, submissionId: string): Promise<number> {
   const lesson = await prisma.lesson.findUnique({
     where: { id: lessonId },
     include: { part: true },

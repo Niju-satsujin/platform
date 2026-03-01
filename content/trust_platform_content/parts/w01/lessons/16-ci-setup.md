@@ -22,6 +22,7 @@ CI (Continuous Integration) means: every time you push code, a server automatica
 GitHub Actions is a free CI service built into GitHub. You define a workflow in a YAML file, and GitHub runs it on every push.
 
 The workflow for a C++ project is simple:
+
 1. Check out the code
 2. Install a C++ compiler (Ubuntu runners already have g++)
 3. Run `cmake -B build && cmake --build build`

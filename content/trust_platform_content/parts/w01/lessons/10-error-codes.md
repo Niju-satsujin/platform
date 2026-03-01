@@ -17,14 +17,16 @@ proof:
 
 ## Concept
 
-Right now your logger returns true/false or exit codes 0/1/2. That tells you "something went wrong" but not exactly what. When you have a system with 10 components all writing logs, "error" is not enough — you need to know the category.
+Right now your trustlog returns true/false or exit codes 0/1/2. That tells you "something went wrong" but not exactly what. When you have a system with 10 components all writing logs, "error" is not enough — you need to know the category.
 
 A numbering scheme helps:
+
 - **1xxx** — input validation errors (bad data from the caller)
 - **2xxx** — file system errors (cannot open, write, or sync)
 - **3xxx** — parse errors (corrupted log file during read)
 
 Specific codes:
+
 - `1001` — empty field
 - `1002` — field contains tab or newline
 - `1003` — field exceeds size limit
@@ -54,13 +56,14 @@ You represent these as an `enum class ErrorCode` with explicit integer values. T
 ## Verify
 
 ```bash
-./logger write INFO "" "test" 2>&1
-./logger write INFO main "$(python3 -c 'print("A"*2000)')" 2>&1
+./build/trustlog append --file log.txt --level INFO --component "" --message "test" 2>&1
+./build/trustlog append --file log.txt --level INFO --component main --message "$(python3 -c 'print("A"*2000)')" 2>&1
 echo "bad line" >> log.txt
-./logger read 2>&1
+./build/trustlog read --file log.txt 2>&1
 ```
 
 Expected:
+
 - First command shows "Error 1001"
 - Second command shows "Error 1003"
 - Third command shows "Error 3001" for the bad line, then prints good entries

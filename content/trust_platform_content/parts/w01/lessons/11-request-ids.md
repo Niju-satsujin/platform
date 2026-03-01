@@ -24,14 +24,15 @@ A request ID is just a random string. For this project, 8 hex characters (32 bit
 
 In C, you would use `rand()` — but `rand()` is famously bad (predictable, not thread-safe). In C++, use `std::mt19937` (Mersenne Twister) seeded with `std::random_device`. It is a better random number generator, and C++ gives it to you in the standard library.
 
+Since lesson 3, your log format already has a 5th field reserved for the request ID (currently empty). Now you fill it in — no format change needed.
+
 ## Task
 
 1. Write a function `std::string generate_request_id()` that returns an 8-character lowercase hex string
 2. Use `std::mt19937` seeded by `std::random_device` to generate a random 32-bit number
 3. Format the number as hex with `std::snprintf` or `std::stringstream` with `std::hex`
-4. Add a `request_id` field to your log format — the new format is: `timestamp\tlevel\tcomponent\trequest_id\tmessage`
-5. Update `read_log()` and `LogEntry` to include the 5th field
-6. If a log line has 4 fields (old format), treat request_id as empty — backwards compatibility
+4. Fill in the 5th field of your log format with the generated request ID — the format stays: `timestamp\tlevel\tcomponent\tmessage\trequest_id`
+5. Update `read_log()` display to show the request ID
 
 ## Hints
 
@@ -45,16 +46,16 @@ In C, you would use `rand()` — but `rand()` is famously bad (predictable, not 
 ## Verify
 
 ```bash
-./logger write INFO main "request one"
-./logger write INFO main "request two"
-./logger write WARN db "timeout"
-./logger write ERROR main "failed"
-./logger write INFO main "recovered"
-./logger read
+./build/trustlog append --file log.txt --level INFO --component main --message "request one"
+./build/trustlog append --file log.txt --level INFO --component main --message "request two"
+./build/trustlog append --file log.txt --level WARN --component db --message "timeout"
+./build/trustlog append --file log.txt --level ERROR --component main --message "failed"
+./build/trustlog append --file log.txt --level INFO --component main --message "recovered"
+./build/trustlog read --file log.txt
 ```
 
 Expected: each entry has a unique 8-hex-char request ID in the output. No two IDs are the same.
 
 ## Done When
 
-Every new log entry gets a unique request ID, and `logger read` displays it correctly.
+Every new log entry gets a unique request ID in the 5th field, and `trustlog read` displays it correctly.

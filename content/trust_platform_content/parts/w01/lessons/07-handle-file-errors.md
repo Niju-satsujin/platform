@@ -18,6 +18,7 @@ proof:
 ## Concept
 
 Three things go wrong with files:
+
 1. The file does not exist (you try to read `data.log` but it was deleted)
 2. You do not have permission to write (the file is read-only, or the directory is not yours)
 3. The file contains garbage (a line is missing fields, or a timestamp is not a number)
@@ -30,10 +31,16 @@ The rule is: **never crash on bad input**. Print a clear error message to stderr
 
 For malformed lines during read, do not crash either. Skip the bad line, log a warning, and keep going. One corrupted line should not prevent you from reading the other 10,000 good lines.
 
+## What is an exception?
+
+In C, when something goes wrong, you return an error code and the caller checks it. The problem: callers can forget to check. The error is silently ignored and the program keeps running with bad state.
+
+C++ adds **exceptions** — a way to force the caller to handle the error. When you `throw` an exception, the program immediately stops executing the current function and jumps backwards through the call stack until it finds a `catch` block that handles that type of exception. If no `catch` is found, the program terminates. This means errors cannot be silently ignored — they either get caught and handled, or they kill the program.
+
 ## Task
 
-1. In your `Logger` constructor: if the file fails to open, print an error to stderr and throw a `std::runtime_error`
-2. In `main.cpp`: catch the exception and return exit code 2
+1. In your `TrustLog` constructor: if the file fails to open, print an error to stderr and throw a `std::runtime_error`
+2. In `main.cpp`: wrap the TrustLog construction in a `try/catch` block and return exit code 2 if the exception fires
 3. In `read_log()`: if the input file does not exist, return an empty vector and print a warning to stderr
 4. In `read_log()`: if a line has fewer than 4 tab-separated fields, skip it and print a warning to stderr (include the line number)
 5. In `read_log()`: if the timestamp cannot be parsed as a number, skip the line and warn
@@ -50,17 +57,18 @@ For malformed lines during read, do not crash either. Skip the bad line, log a w
 
 ```bash
 # Test 1: read nonexistent file
-./logger read --file /tmp/nope.log; echo "exit code: $?"
+./build/trustlog read --file /tmp/nope.log; echo "exit code: $?"
 
 # Test 2: write to unwritable location
-./logger write INFO main "test" --file /root/nope.log; echo "exit code: $?"
+./build/trustlog append --file /root/nope.log --level INFO --component main --message "test"; echo "exit code: $?"
 
 # Test 3: read file with malformed line
-echo -e "not a valid line\n1708800000000\tINFO\tmain\tgood line" > /tmp/mixed.log
-./logger read --file /tmp/mixed.log
+echo -e "not a valid line\n1708800000000\tINFO\tmain\tgood line\t" > /tmp/mixed.log
+./build/trustlog read --file /tmp/mixed.log
 ```
 
 Expected:
+
 - Test 1: warning on stderr, exit code 2 or 0 with empty output
 - Test 2: error on stderr, exit code 2
 - Test 3: warning about line 1, then prints the good line
