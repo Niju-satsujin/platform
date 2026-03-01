@@ -898,6 +898,52 @@ export function CodeEditorPanel({
     }
   }, [openFiles, proofRules, mode, lessonId, partSlug, lessonSlug]);
 
+  /* ── Mark lesson as passed without testing ── */
+  const markPassed = useCallback(async () => {
+    if (lessonPassed) return;
+    setTestResult({ status: "running", message: "Marking as passed..." });
+
+    try {
+      const formData = new FormData();
+      if (mode === "quest") {
+        formData.set("questId", lessonId);
+        formData.set("partSlug", partSlug);
+      } else {
+        formData.set("lessonId", lessonId);
+        formData.set("partSlug", partSlug);
+        formData.set("lessonSlug", lessonSlug);
+      }
+      formData.set("pastedText", "Manually marked as passed");
+      formData.set("manualPass", "true");
+      formData.set("skipDefense", "true");
+
+      const endpoint = mode === "quest"
+        ? "/api/submissions/quest"
+        : "/api/submissions/lesson";
+      const subRes = await fetch(endpoint, { method: "POST", body: formData });
+      const subData = await subRes.json();
+
+      if (subRes.ok && subData.status === "passed") {
+        setLessonPassed(true);
+        setTestResult({
+          status: "passed",
+          message: "Lesson completed!",
+          xpAwarded: subData.xpAwarded || 0,
+        });
+      } else {
+        setTestResult({
+          status: "failed",
+          message: subData.error || subData.message || "Failed to mark as passed",
+        });
+      }
+    } catch {
+      setTestResult({
+        status: "error",
+        message: "Could not submit — are you logged in?",
+      });
+    }
+  }, [lessonPassed, mode, lessonId, partSlug, lessonSlug]);
+
   return (
     <div className="flex h-full">
       {/* ── File tree sidebar ── */}
@@ -1056,9 +1102,15 @@ export function CodeEditorPanel({
             >
               {testResult?.status === "running" ? "⏳ Checking..." : "🧪 Testing"}
             </button>
-            {lessonPassed && (
-              <span className="text-[10px] text-green-400 font-semibold">Passed</span>
-            )}
+            <button
+              type="button"
+              onClick={markPassed}
+              className="editor-btn text-[11px] text-green-400 hover:text-green-300"
+              title="Mark this lesson as complete and earn XP"
+              disabled={lessonPassed || testResult?.status === "running"}
+            >
+              {lessonPassed ? "✅ Passed" : "✓ Pass"}
+            </button>
             {(saving || syncingLocal) && (
               <span className="text-[10px] text-gray-500">
                 {syncingLocal ? "syncing…" : "saving…"}
